@@ -1,0 +1,18 @@
+# ninja log v7
+5	580	7941193455170336	Image_Stitcher_Auto_autogen/timestamp	2a8b2e350705c073
+5	580	7941193455170336	Image_Stitcher_Auto_autogen/mocs_compilation.cpp	2a8b2e350705c073
+5	580	7941193455170336	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Debug/Image_Stitcher_Auto_autogen/timestamp	2a8b2e350705c073
+5	580	7941193455170336	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Debug/Image_Stitcher_Auto_autogen/mocs_compilation.cpp	2a8b2e350705c073
+594	712	7941193455793811	CMakeFiles/Image_Stitcher_Auto.dir/app.rc.obj	e61636fe6f2beedb
+648	1789	7941193456337399	CMakeFiles/Image_Stitcher_Auto.dir/image_utils.cpp.obj	33572f0399e64880
+657	1871	7941193456428998	CMakeFiles/Image_Stitcher_Auto.dir/autospinbox.cpp.obj	9bceae81b1bbe368
+592	1961	7941193455761224	CMakeFiles/Image_Stitcher_Auto.dir/campus.cpp.obj	4e52adb0e9d808f8
+646	2040	7941193456302497	CMakeFiles/Image_Stitcher_Auto.dir/droparea_wiz.cpp.obj	48f786407f1cd318
+661	2214	7941193456461318	CMakeFiles/Image_Stitcher_Auto.dir/detail_dialog.cpp.obj	d4496bc5c3730d4
+654	2293	7941193456392539	CMakeFiles/Image_Stitcher_Auto.dir/cornerdirectionselector.cpp.obj	9d0e0a05f6ab59a7
+587	2378	7941193455717935	CMakeFiles/Image_Stitcher_Auto.dir/main.cpp.obj	4ed00852bfed4b36
+651	2554	7941193456362487	CMakeFiles/Image_Stitcher_Auto.dir/filetablewidget.cpp.obj	95c4965dda5a17e5
+584	2923	7941193455682881	CMakeFiles/Image_Stitcher_Auto.dir/Image_Stitcher_Auto_autogen/mocs_compilation.cpp.obj	c64d9564b63e3868
+643	2995	7941193456282497	CMakeFiles/Image_Stitcher_Auto.dir/file_input_wiz.cpp.obj	f2aa1e78172fca49
+589	5453	7941193455739357	CMakeFiles/Image_Stitcher_Auto.dir/mainwindow.cpp.obj	deb5be2c3fc440a8
+5455	6683	7941193504394511	Image_Stitcher_Auto.exe	9a9e930cbd469ff
