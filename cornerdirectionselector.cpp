@@ -438,7 +438,7 @@ void CornerDirectionSelector::enable_UI(int i, bool check)
     }
 }
 
-void CornerDirectionSelector::setMax(int i)
+void CornerDirectionSelector::setMax(int i, bool au)
 {
     spinR->setRange(0, i);
     sliderR->setRange(0, i);
@@ -452,7 +452,7 @@ void CornerDirectionSelector::setMax(int i)
         } else if (state_UI == 2 || state_UI == 4 || state_UI == 6 || state_UI == 8) {
             onRowsChanged(r_num);
         }
-    } else if (state_UI == -1) { // 初回
+    } else if (state_UI == -1 && au) { // 初回
         setRauto();
     } else if ((r_num == 0 && c_num == 0)) { // state_UI == 0の場合
         if (state_UI == 1 || state_UI == 3 || state_UI == 5 || state_UI == 7) {
