@@ -79,23 +79,6 @@ public:
     //void set_inputF(QStringList);
     //QStringList get_inputF();
 
-    // CLI由来のファイルパスをチェックする
-    void File_input_check(QStringList);
-    void File_input_UI();
-    void set_over_value(int, int, int);
-    //int get_inputF_num() {return input_files.size();};
-    void set_array_value(int, int, int);
-    void set_zigzag_value(int);
-    void run_manual();
-    void cli_make_image() {make_image();}
-    void cli_exp_image(QString);
-
-signals:
-    void fileInputFinished();   // 完了通知
-    void calcFinished();
-    void makeimageFinished();
-    void exportFinished();
-
 private slots:
     void onOpacity1Changed(int percent);
     void calc_iFFT(); // ボタンを押した時に実行
@@ -199,16 +182,6 @@ private:
 
     // rerunの探索範囲数
     int ovc;
-
-    // ファイル名ソート
-    QStringList onSortUpFname(QStringList);
-
-    // 計算finishでシグナル発出するか
-    bool calc_finish_sig = false;
-
-    // 良好状態
-    bool ryoukou = false;
-
 };
 
 class MyGraphicsView : public QGraphicsView

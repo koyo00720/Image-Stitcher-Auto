@@ -15,7 +15,6 @@
 #include <QSignalBlocker>
 #include <QtConcurrent/QtConcurrent>
 #include <QIntValidator>
-#include <QImageReader>
 
 #include <QPointer>
 #include <QDebug>
@@ -361,6 +360,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 {
     ui->setupUi(this);
 
+
     // 入力画像設定ボタン
     connect(ui->pushButton_1, &QPushButton::clicked, this, [this]() {
         FileInputDialog dlg(this->input_files, this);
@@ -543,9 +543,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         output_img = image_make_Watcher.result();
         ui->label_6->setText("完了");
         ui->pushButton_2->setEnabled(true);
-        if (calc_finish_sig) {
-            emit makeimageFinished();
-        }
     });
 }
 
@@ -565,176 +562,12 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+
 static int viewZoomPercent(const QGraphicsView *view)
 {
     const double s = view->transform().m11();   // x方向スケール（等方ならこれでOK）
     return int(std::round(s * 100.0));
 }
-
-// CLI由来のファイルパスをチェックする
-void MainWindow::File_input_UI()
-{
-    ui->pushButton_1->setEnabled(false);
-    ui->pushButton_1->setText("ファイル読み込み中...");
-    ui->pushButton_1->repaint();
-    QApplication::processEvents();
-}
-
-// CLI由来のファイルパスをチェックする
-void MainWindow::File_input_check(QStringList cli_paths)
-{
-    // 再帰的展開
-    QStringList result;
-    QSet<QString> seen;
-
-    for (const QString& path : cli_paths) {
-        QFileInfo info(path);
-
-        if (!info.exists()) {
-            // 存在しないパスは無視
-            continue;
-        }
-
-        if (info.isFile()) {
-            QString filePath = info.absoluteFilePath();
-            if (!seen.contains(filePath)) {
-                result << filePath;
-                seen.insert(filePath);
-            }
-        }
-        else if (info.isDir()) {
-            QDirIterator it(
-                info.absoluteFilePath(),
-                QDir::Files,                       // ファイルのみ取得
-                QDirIterator::Subdirectories       // 再帰
-                );
-
-            while (it.hasNext()) {
-                QString filePath = it.next();
-                QFileInfo fInfo(filePath);
-                QString absPath = fInfo.absoluteFilePath();
-
-                if (!seen.contains(absPath)) {
-                    result << absPath;
-                    seen.insert(absPath);
-                }
-            }
-        }
-    }
-    result = onSortUpFname(result); // 順番を整理
-
-    // 画像としてファイルを読み込めるか確認
-    QStringList validFiles;
-    validFiles.reserve(result.size());
-
-    for (const QString &path : std::as_const(result)) {
-        // 先に画像読み込み
-        QImageReader reader(path);
-        reader.setAutoTransform(true);
-        QImage img = reader.read();
-
-        // 読み取り不可ならスキップ（fiw_filesにも入れない）
-        if (img.isNull()) {
-            continue;
-        }
-
-        // 読めたファイルだけ保持
-        validFiles.append(path);
-    }
-
-    QStringList file_null;
-    File_input(file_null,validFiles);
-
-    ui->pushButton_1->setEnabled(true);
-    ui->pushButton_1->setText("入力画像");
-
-    emit fileInputFinished(); // 完了通知
-}
-
-
-QStringList MainWindow::onSortUpFname(QStringList input_files)
-{
-    QCollator collator;
-    collator.setNumericMode(true);          // "2" < "10" を自然に
-    collator.setCaseSensitivity(Qt::CaseInsensitive);
-
-    std::sort(input_files.begin(), input_files.end(),
-              [&collator](const QString &a, const QString &b) {
-                  const QFileInfo ia(a);
-                  const QFileInfo ib(b);
-
-                  // 第1キー: 親パス
-                  const QString dirA = ia.path();       // 例: C:/xxx/yyy
-                  const QString dirB = ib.path();
-                  int cmp = collator.compare(dirA, dirB);
-                  if (cmp != 0) return cmp < 0;
-
-                  // 第2キー: ファイル名（拡張子なし）
-                  // completeBaseName() は "a.tar.gz" -> "a.tar"
-                  const QString baseA = ia.completeBaseName();
-                  const QString baseB = ib.completeBaseName();
-                  cmp = collator.compare(baseA, baseB);
-                  if (cmp != 0) return cmp < 0;
-
-                  // 第3キー: 拡張子
-                  const QString extA = ia.suffix();
-                  const QString extB = ib.suffix();
-                  cmp = collator.compare(extA, extB);
-                  if (cmp != 0) return cmp < 0;
-
-                  // 同値時の最終タイブレーク（安定化のためフルパス）
-                  return collator.compare(a, b) < 0;
-              });
-    return input_files;
-};
-
-// 画像同士の重なりの目安を設定
-void MainWindow::set_over_value(int o_x, int o_y, int o_r)
-{
-    ui->horizontalSlider->setValue(o_x);
-    ui->horizontalSlider_2->setValue(o_y);
-    ui->horizontalSlider_3->setValue(o_r);
-}
-
-// 画像の配列を設定
-void MainWindow::set_array_value(int ar, int arh, int arv)
-{
-    ui->cornerSelector->setUI(ar);
-
-    const int n = input_files.size();
-    if (ar == 1 || ar == 3 || ar == 5 || ar == 7) {
-        if (arh > n) {
-            arh = n;
-        } else if (arh < 0) {
-            arh = 0;
-        }
-        ui->cornerSelector->setCols(arh);
-    } else {
-        if (arv > n) {
-            arv = n;
-        } else if (arv < 0) {
-            arv = 0;
-        }
-        ui->cornerSelector->setRows(arv);
-    }
-}
-
-// 折り返しを指定
-void MainWindow::set_zigzag_value(int g)
-{
-    if (g == 0) {
-        ui->radioButton_4->setChecked(true);
-    } else if (g == 1) {
-        ui->radioButton_3->setChecked(true);
-    }
-}
-
-// 計算の実行
-void MainWindow::run_manual() {
-    calc_finish_sig = true;
-    calc_iFFT();
-}
-
 
 // ファイル入力ウィザードでok押した時に実行
 void MainWindow::File_input(const QStringList& paths_old, const QStringList& paths_new)
@@ -830,7 +663,7 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
         it->setZValue(i + 1);
     }
     input_files = paths_new;
-    ui->cornerSelector->setMax(input_files.size(),true);
+    ui->cornerSelector->setMax(input_files.size());
     toumeido.fill(0, input_files.size());
 };
 
@@ -856,7 +689,7 @@ void MainWindow::deleteSelectedItems()
     for (int i = 0; i < items.size(); ++i) {
         if (items[i]) itemById.insert(i, items[i]);
     }
-    ui->cornerSelector->setMax(input_files.size(),true);
+    ui->cornerSelector->setMax(input_files.size());
     photo_Arrange();
 }
 
@@ -1615,10 +1448,8 @@ void MainWindow::calc_finish_1()
 
     if (countF == 0) {
         ui->label_5->setText("良好");
-        ryoukou = true;
     } else {
         ui->label_5->setText(QString::number(countF) + " ヶ所不良");
-        ryoukou = false;
     }
 
     // キャンパスを計算する
@@ -1676,9 +1507,6 @@ void MainWindow::calc_finish_1()
     ui->pushButton_4->setEnabled(true);
     ui->pushButton_2->setEnabled(true);
 
-    if (calc_finish_sig && ryoukou) {
-        emit calcFinished();
-    }
 }
 
 void MainWindow::calc_finish_2()
@@ -2025,10 +1853,8 @@ void MainWindow::calc_finish_2()
 
     if (countF == 0) {
         ui->label_5->setText("良好");
-        ryoukou = true;
     } else {
         ui->label_5->setText(QString::number(countF) + " ヶ所不良");
-        ryoukou = false;
     }
 
     // キャンパスを計算する
@@ -2084,11 +1910,6 @@ void MainWindow::calc_finish_2()
     ui->label_4->setEnabled(true);
     ui->pushButton_4->setEnabled(true);
     ui->pushButton_2->setEnabled(true);
-
-    if (calc_finish_sig && ryoukou) {
-        emit calcFinished();
-    }
-
 }
 
 void MainWindow::png_export() {
@@ -2119,27 +1940,6 @@ void MainWindow::png_export() {
     QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
     qimg.save(newpath, "PNG");
 }
-
-
-void MainWindow::cli_exp_image(QString out_p) {
-    if (input_files.size() == 0 || output_img.empty()) {
-        QMessageBox::warning(this, "PNG export", "出力できる画像がありません。");
-        return;
-    }
-    QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
-
-    bool ok = qimg.save(out_p, "PNG");
-    if (!ok) {
-        QMessageBox::critical(this, "保存エラー",
-                              "画像を保存できませんでした。\n"
-                              "出力先パスを確認してください。\n\n"
-                              "Path: " + out_p);
-    } else {
-        ui->pushButton_4->setText("PNG エクスポート: 完了");
-        emit exportFinished();
-    }
-}
-
 
 // SSIM 各スレッドのデータ構造化
 static return_struct1 SSIM_calc_oneshot_struct(const SSIM_TaskInput& in)
@@ -2704,7 +2504,6 @@ void MainWindow::make_image()
 
     ui->label_6->setText("作成中");
     ui->pushButton_2->setEnabled(false);
-    ui->pushButton_4->setText("PNG エクスポート");
 
     // 別スレッドに渡すために必要データをコピー
     auto imgs_copy = imgs;
@@ -2725,6 +2524,11 @@ void MainWindow::make_image()
         return out;
     }));
 }
+
+
+
+
+
 
 
 

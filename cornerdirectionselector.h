@@ -21,7 +21,7 @@ public:
     // ui->cornerSelector->setUI(1); のようにして実行
 
     // 外部からintを受け取り、行数や列数のmax値の参考にする。
-    void setMax(int,bool);
+    void setMax(int);
 
     // 自動で行数を設定する
     void setRauto();
