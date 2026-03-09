@@ -64,6 +64,7 @@ struct ifft_thread_output {
     bool stability; // tureは安定、falseは不安定
     int loop_num; // ループ計算回数
     double ssim;
+    bool calc_error = false; // OpenCV計算例外
 };
 
 class MainWindow : public QMainWindow
@@ -191,3 +192,4 @@ protected:
 
 
 #endif // MAINWINDOW_H
+

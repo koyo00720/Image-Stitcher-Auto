@@ -517,6 +517,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // 画像作成ボタン
     connect(ui->pushButton_2, &QPushButton::clicked, this, &MainWindow::make_image);
+    ui->pushButton_2->setEnabled(false);
 
     // PNG exportボタン
     connect(ui->pushButton_4, &QPushButton::clicked, this, &MainWindow::png_export);
@@ -547,7 +548,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
 MainWindow::~MainWindow()
 {
+    // 終了時の queued signal が破棄中オブジェクトへ届くのを防ぐ
+    disconnect(&watcher, nullptr, this, nullptr);
+    disconnect(&watcher_re, nullptr, this, nullptr);
+    disconnect(&image_make_Watcher, nullptr, this, nullptr);
+    if (scene) {
+        disconnect(scene, nullptr, this, nullptr);
+    }
+
     if (watcher.isRunning()) { watcher.cancel(); watcher.waitForFinished(); }
+    if (watcher_re.isRunning()) { watcher_re.cancel(); watcher_re.waitForFinished(); }
+    if (image_make_Watcher.isRunning()) { image_make_Watcher.cancel(); image_make_Watcher.waitForFinished(); }
     delete ui;
 }
 
@@ -566,6 +577,21 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
     //qDebug() << "new size " << n_new;
     //qDebug() << "old size " << n_old;
     const int n_max = std::max(n_new, n_old);
+
+    // 適用前に全画像を検証して、途中失敗による状態不整合を避ける
+    QVector<QPixmap> pix_new(n_new);
+    for (int i = 0; i < n_new; ++i) {
+        QPixmap pix(paths_new[i]);
+        if (pix.isNull()) {
+            QMessageBox::warning(
+                this,
+                tr("エラー"),
+                tr("%1枚目の画像の読み込みに失敗しました。\nファイル入力ウィザードから削除してください。").arg(i + 1)
+                );
+            return;
+        }
+        pix_new[i] = pix;
+    }
 
     // items は「new の個数」に合わせる
     items.resize(n_new);
@@ -587,15 +613,7 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
 
         // (B) 古い方が短い → 新規追加
         if (i >= n_old) {
-            QPixmap pix(paths_new[i]);
-            if (pix.isNull()) {
-                QMessageBox::warning(
-                    this,
-                    tr("エラー"),
-                    tr("%1枚目の画像の読み込みに失敗しました。\nファイル入力ウィザードから削除してください。").arg(i + 1)
-                    );
-                break;
-            }
+            const QPixmap& pix = pix_new[i];
 
             auto* it = scene->addPixmap(pix);
             items[i] = it;
@@ -618,15 +636,7 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
         }
 
         // (D) 両方に存在 → パスが違うので置換
-        QPixmap pix(paths_new[i]);
-        if (pix.isNull()) {
-            QMessageBox::warning(
-                this,
-                tr("エラー"),
-                tr("%1枚目の画像の読み込みに失敗しました。\nファイル入力ウィザードから削除してください。").arg(i + 1)
-                );
-            break;
-        }
+        const QPixmap& pix = pix_new[i];
 
         // 古い item を取得（無い可能性もあるのでチェック）
         auto it_old = itemById.find(i);
@@ -698,7 +708,9 @@ void MainWindow::onOpacity1Changed(int percent)
     for (QGraphicsItem* item : selected) {
         item->setOpacity(alpha);
         int idx = items.indexOf(static_cast<QGraphicsPixmapItem*>(item));
-        toumeido[idx] = percent;
+        if (idx >= 0 && idx < toumeido.size()) {
+            toumeido[idx] = percent;
+        }
     }
 }
 
@@ -708,7 +720,9 @@ void MainWindow::onSceneSelectionChanged()
     const int n = input_files.size();
     if (selected.isEmpty()) {
         for (int i = 0; i < n; ++i) {
-            items[i]->setZValue(i + 1);
+            if (i < items.size() && items[i]) {
+                items[i]->setZValue(i + 1);
+            }
         }
         ui->sliderOpacity1->setValue(0);
         ui->label_2->setEnabled(false);
@@ -727,13 +741,18 @@ void MainWindow::onSceneSelectionChanged()
 
     QGraphicsItem* firstItem = selected.first();
     int idx = items.indexOf(static_cast<QGraphicsPixmapItem*>(firstItem));
+    if (idx < 0 || idx >= toumeido.size()) {
+        return;
+    }
     ui->sliderOpacity1->setValue(toumeido[idx]);
 
     // 選択された画像を前面へ出す
     QVector<int> idx_list;
     for (QGraphicsItem* item : selected) {
         int idx = items.indexOf(static_cast<QGraphicsPixmapItem*>(item));
-        idx_list.push_back(idx);
+        if (idx >= 0) {
+            idx_list.push_back(idx);
+        }
     }
 
     // 選択番号を表示
@@ -745,10 +764,12 @@ void MainWindow::onSceneSelectionChanged()
     ui->label_9->setText(parts.join(", "));
 
     for (int i = 0; i < n; ++i) {
-        if (idx_list.contains(i)) {
-            items[i]->setZValue(i + n + 1);
-        } else {
-            items[i]->setZValue(i + 1);
+        if (i < items.size() && items[i]) {
+            if (idx_list.contains(i)) {
+                items[i]->setZValue(i + n + 1);
+            } else {
+                items[i]->setZValue(i + 1);
+            }
         }
     }
 }
@@ -763,68 +784,90 @@ static ifft_thread_output calc_oneshot(const ifft_thread_input& in)
     c_posVs.reserve(in.calc_loop_num);
     c_posVs.push_back(c_pos2);
 
-    int x_r, y_r;
+    int x_r = c_pos2.x();
+    int y_r = c_pos2.y();
     double response = 0.0;
     bool stab_now = false;
     int count = 0;
-    double x_d, y_d;
+    double x_d = static_cast<double>(c_pos2.x());
+    double y_d = static_cast<double>(c_pos2.y());
 
     ifft_thread_output r;
-
-    // 最大4回計算して安定するか確認する
-    for (int l = 0; l < in.calc_loop_num; ++l) {
-
-    // 重なり領域をcropして取り出す。
-        return_struct2 r_st = Crop_2ImageTo2Image(in.input1, in.input2, in.px1, c_pos1, in.px2, c_posVs[l]);
-        cv::Mat crop1 = r_st.img1;
-        cv::Mat crop2 = r_st.img2;
-
-        if (crop1.rows == 0 || crop1.cols == 0) {
-            // 元のvecを元に計算
-            r.score = -1;
-            r.vecX = c_pos2.x();
-            r.vecY = c_pos2.y();
-            r.stability = false;
-            r.loop_num = count;
-            return r;
-        }
-
-        // 色変換
-        cv::Mat1f a = clahe_then_grad(crop1);
-        cv::Mat1f b = clahe_then_grad(crop2);
-
-        // 位相相関法による位置合わせ
-        cv::Point2d shift = cv::phaseCorrelate(a, b, cv::noArray(), &response);
-
-        // 四捨五入
-        cv::Point2d shift_r(std::round(shift.x), std::round(shift.y));
-
-        // 1枚目→2枚目画像の新しい移動ベクトル (int)
-        x_r = c_posVs[l].x() - c_pos1.x() - shift_r.x;
-        y_r = c_posVs[l].y() - c_pos1.y() - shift_r.y;
-
-        // 1枚目→2枚目画像の新しい移動ベクトル (double)
-        x_d = static_cast<double>(c_posVs[l].x() - c_pos1.x()) - shift.x;
-        y_d = static_cast<double>(c_posVs[l].y() - c_pos1.y()) - shift.y;
-
-        count++;
-
-        if (c_posVs[l].x() == x_r && c_posVs[l].y() == y_r) {
-            stab_now = true;
-            break;
-        }
-        c_posVs.push_back(QPoint(x_r,y_r));
-    }
-
     r.img1_id = in.img1_id;
     r.img2_id = in.img2_id;
-    r.vecX = x_d;
-    r.vecY = y_d;
-    r.score = response;
-    r.stability = stab_now;
-    r.loop_num = count;
-    r.ssim = SSIM_calc_oneshot(SSIM_TaskInput{in.input1,in.input2,in.px1,QPoint(0,0),in.px2,QPoint(x_r,y_r),0,0});
-    return r;
+
+    try {
+        // 最大4回計算して安定するか確認する
+        for (int l = 0; l < in.calc_loop_num; ++l) {
+
+        // 重なり領域をcropして取り出す。
+            return_struct2 r_st = Crop_2ImageTo2Image(in.input1, in.input2, in.px1, c_pos1, in.px2, c_posVs[l]);
+            cv::Mat crop1 = r_st.img1;
+            cv::Mat crop2 = r_st.img2;
+
+            if (crop1.rows <= 1 || crop1.cols <= 1 || crop2.rows <= 1 || crop2.cols <= 1) {
+                // 元のvecを元に計算
+                r.score = -1;
+                r.vecX = c_pos2.x();
+                r.vecY = c_pos2.y();
+                r.stability = false;
+                r.loop_num = count;
+                return r;
+            }
+
+            // 色変換
+            cv::Mat1f a = clahe_then_grad(crop1);
+            cv::Mat1f b = clahe_then_grad(crop2);
+
+            // 位相相関法による位置合わせ
+            cv::Point2d shift = cv::phaseCorrelate(a, b, cv::noArray(), &response);
+
+            // 四捨五入
+            cv::Point2d shift_r(std::round(shift.x), std::round(shift.y));
+
+            // 1枚目→2枚目画像の新しい移動ベクトル (int)
+            x_r = c_posVs[l].x() - c_pos1.x() - shift_r.x;
+            y_r = c_posVs[l].y() - c_pos1.y() - shift_r.y;
+
+            // 1枚目→2枚目画像の新しい移動ベクトル (double)
+            x_d = static_cast<double>(c_posVs[l].x() - c_pos1.x()) - shift.x;
+            y_d = static_cast<double>(c_posVs[l].y() - c_pos1.y()) - shift.y;
+
+            count++;
+
+            if (c_posVs[l].x() == x_r && c_posVs[l].y() == y_r) {
+                stab_now = true;
+                break;
+            }
+            c_posVs.push_back(QPoint(x_r,y_r));
+        }
+
+        r.vecX = x_d;
+        r.vecY = y_d;
+        r.score = response;
+        r.stability = stab_now;
+        r.loop_num = count;
+        r.ssim = SSIM_calc_oneshot(SSIM_TaskInput{in.input1,in.input2,in.px1,QPoint(0,0),in.px2,QPoint(x_r,y_r),0,0});
+        return r;
+    } catch (const cv::Exception&) {
+        r.calc_error = true;
+        r.score = -1;
+        r.vecX = c_pos2.x();
+        r.vecY = c_pos2.y();
+        r.stability = false;
+        r.loop_num = count;
+        r.ssim = 0.0;
+        return r;
+    } catch (...) {
+        r.calc_error = true;
+        r.score = -1;
+        r.vecX = c_pos2.x();
+        r.vecY = c_pos2.y();
+        r.stability = false;
+        r.loop_num = count;
+        r.ssim = 0.0;
+        return r;
+    }
 }
 
 // iFFTを別スレッドで開始
@@ -951,6 +994,14 @@ void MainWindow::calc_iFFT_rerun()
                 }
             }
         }
+    }
+
+    // 探索候補が0件だと後段で未初期化参照が起きるため、最低1件を保証
+    if (ov_list.isEmpty()) {
+        const int xo = std::clamp(overX, 1, 99);
+        const int yo = std::clamp(overY, 1, 99);
+        ov_list.push_back(QPoint(xo, yo));
+        ovc = 1;
     }
 
     // 並列処理向けの入力値を作成する
@@ -1165,6 +1216,20 @@ void MainWindow::calc_iFFT_rerun()
 void MainWindow::calc_finish_1()
 {
     calc_results = watcher.future().results();
+    const bool has_calc_error = std::any_of(calc_results.cbegin(), calc_results.cend(),
+                                            [](const ifft_thread_output& r){ return r.calc_error; });
+    if (has_calc_error) {
+        ui->label_5->setText("計算失敗");
+        output_img.release();
+        ui->groupBox_5->setEnabled(true);
+        ui->pushButton_Calc1->setEnabled(true);
+        ui->pushButton->setEnabled(false);
+        ui->label_4->setEnabled(false);
+        ui->pushButton_4->setEnabled(false);
+        ui->pushButton_2->setEnabled(false);
+        ui->label_6->setText("");
+        return;
+    }
     int n = input_files.size();
     int m_layoutState = ui->cornerSelector->getStatus();
     int m_rows = ui->cornerSelector->getRows();
@@ -1190,9 +1255,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {0.0, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, 0.0};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 1 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 1 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 2;
-                } else if (idou_dir[i-1] == 1 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 1 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 0;
                 } else {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, 0.0};
@@ -1209,9 +1274,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, 0.0, 0.0, calc_results[i*4+3].ssim};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 0 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 0 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 3;
-                } else if (idou_dir[i-1] == 0 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 0 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 1;
                 } else {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, calc_results[i*4+1].ssim, 0.0, calc_results[i*4+3].ssim};
@@ -1228,9 +1293,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {0.0, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, 0.0};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 1 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 1 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 2;
-                } else if (idou_dir[i-1] == 1 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 1 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 0;
                 } else {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, 0.0};
@@ -1247,9 +1312,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {0.0, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, 0.0};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 2 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 2 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 1;
-                } else if (idou_dir[i-1] == 2 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 2 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 3;
                 } else {
                     std::array<double, 4> v = {0.0, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, calc_results[i*4+3].ssim};
@@ -1266,9 +1331,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {0.0, 0.0, calc_results[i*4+2].ssim, calc_results[i*4+3].ssim};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 3 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 3 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 2;
-                } else if (idou_dir[i-1] == 3 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 3 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 0;
                 } else {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, 0.0, calc_results[i*4+2].ssim, calc_results[i*4+3].ssim};
@@ -1285,9 +1350,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, calc_results[i*4+1].ssim, 0.0, 0.0};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 0 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 0 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 1;
-                } else if (idou_dir[i-1] == 0 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 0 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 3;
                 } else {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, calc_results[i*4+1].ssim, 0.0, calc_results[i*4+3].ssim};
@@ -1304,9 +1369,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {0.0, 0.0, calc_results[i*4+2].ssim, calc_results[i*4+3].ssim};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 3 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 3 && idou_dir[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 2;
-                } else if (idou_dir[i-1] == 3 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 3 && idou_dir[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 0;
                 } else {
                     std::array<double, 4> v = {calc_results[i*4+0].ssim, 0.0, calc_results[i*4+2].ssim, calc_results[i*4+3].ssim};
@@ -1323,9 +1388,9 @@ void MainWindow::calc_finish_1()
                 } else if (idou_dir[i-1] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                     std::array<double, 4> v = {0.0, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, 0.0};
                     idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                } else if (idou_dir[i-1] == 2 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 2 && idou_dir[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 1;
-                } else if (idou_dir[i-1] == 2 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                } else if (i >= 2 && idou_dir[i-1] == 2 && idou_dir[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                     idx = 3;
                 } else {
                     std::array<double, 4> v = {0.0, calc_results[i*4+1].ssim, calc_results[i*4+2].ssim, calc_results[i*4+3].ssim};
@@ -1447,6 +1512,20 @@ void MainWindow::calc_finish_1()
 void MainWindow::calc_finish_2()
 {
     calc_results_re = watcher_re.future().results();
+    const bool has_calc_error = std::any_of(calc_results_re.cbegin(), calc_results_re.cend(),
+                                            [](const ifft_thread_output& r){ return r.calc_error; });
+    if (has_calc_error) {
+        ui->label_5->setText("計算失敗");
+        output_img.release();
+        ui->groupBox_5->setEnabled(true);
+        ui->pushButton_Calc1->setEnabled(true);
+        ui->pushButton->setEnabled(false);
+        ui->label_4->setEnabled(false);
+        ui->pushButton_4->setEnabled(false);
+        ui->pushButton_2->setEnabled(false);
+        ui->label_6->setText("");
+        return;
+    }
 
     int n = input_files.size();
     //int c = calc_results_re.size();
@@ -1485,7 +1564,7 @@ void MainWindow::calc_finish_2()
                 //qDebug() << "i ind" << i << ind;
 
                 double ssim_max0 = 0.0;
-                int ssim_max_j0N;
+                int ssim_max_j0N = 0;
                 for (int j = 0; j < ovc; ++j) {
                     double now = calc_results_re[ind*ovc*4+j*4+0].ssim;
                     if (now > ssim_max0) {
@@ -1495,7 +1574,7 @@ void MainWindow::calc_finish_2()
                 }
 
                 double ssim_max1 = 0.0;
-                int ssim_max_j1N;
+                int ssim_max_j1N = 0;
                 for (int j = 0; j < ovc; ++j) {
                     double now = calc_results_re[ind*ovc*4+j*4+1].ssim;
                     if (now > ssim_max1) {
@@ -1505,7 +1584,7 @@ void MainWindow::calc_finish_2()
                 }
 
                 double ssim_max2 = 0.0;
-                int ssim_max_j2N;
+                int ssim_max_j2N = 0;
                 for (int j = 0; j < ovc; ++j) {
                     double now = calc_results_re[ind*ovc*4+j*4+2].ssim;
                     if (now > ssim_max2) {
@@ -1514,7 +1593,7 @@ void MainWindow::calc_finish_2()
                     }
                 }
                 double ssim_max3 = 0.0;
-                int ssim_max_j3N;
+                int ssim_max_j3N = 0;
                 for (int j = 0; j < ovc; ++j) {
                     double now = calc_results_re[ind*ovc*4+j*4+3].ssim;
                     if (now > ssim_max3) {
@@ -1541,9 +1620,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {0.0, ssim_max1, ssim_max2, 0.0};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 2;
-                    } else if (idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 0;
                     } else {
                         std::array<double, 4> v = {ssim_max0, ssim_max1, ssim_max2, 0.0};
@@ -1560,9 +1639,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {ssim_max0, 0.0, 0.0, ssim_max3};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 3;
-                    } else if (idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 1;
                     } else {
                         std::array<double, 4> v = {ssim_max0, ssim_max1, 0.0, ssim_max3};
@@ -1579,9 +1658,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {0.0, ssim_max1, ssim_max2, 0.0};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 2;
-                    } else if (idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 1 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 0;
                     } else {
                         std::array<double, 4> v = {ssim_max0, ssim_max1, ssim_max2, 0.0};
@@ -1598,9 +1677,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {0.0, ssim_max1, ssim_max2, 0.0};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 1;
-                    } else if (idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 3;
                     } else {
                         std::array<double, 4> v = {0.0, ssim_max1, ssim_max2, ssim_max3};
@@ -1617,9 +1696,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {0.0, 0.0, ssim_max2, ssim_max3};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 2;
-                    } else if (idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 0;
                     } else {
                         std::array<double, 4> v = {ssim_max0, 0.0, ssim_max2, ssim_max3};
@@ -1636,9 +1715,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {ssim_max0, 0.0, 0.0, ssim_max3};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 3;
-                    } else if (idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 0 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 1;
                     } else {
                         std::array<double, 4> v = {ssim_max0, ssim_max1, 0.0, ssim_max3};
@@ -1655,9 +1734,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {0.0, 0.0, ssim_max2, ssim_max3};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 0 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 2;
-                    } else if (idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 3 && idou_dir_new[i-2] == 2 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 0;
                     } else {
                         std::array<double, 4> v = {ssim_max0, 0.0, ssim_max2, ssim_max3};
@@ -1674,9 +1753,9 @@ void MainWindow::calc_finish_2()
                     } else if (idou_dir_new[i-1] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc) {
                         std::array<double, 4> v = {0.0, ssim_max1, ssim_max2, 0.0};
                         idx = int(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
-                    } else if (idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 3 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 1;
-                    } else if (idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
+                    } else if (i >= 2 && idou_dir_new[i-1] == 2 && idou_dir_new[i-2] == 1 && calc_results_new[i-1].ssim >= ssim_th_calc && calc_results_new[i-2].ssim >= ssim_th_calc) {
                         idx = 3;
                     } else {
                         std::array<double, 4> v = {0.0, ssim_max1, ssim_max2, ssim_max3};
@@ -1720,7 +1799,7 @@ void MainWindow::calc_finish_2()
                 std::size_t ind = std::find(i2id.begin(), i2id.end(), i) - i2id.begin();
 
                 double ssim_max = 0.0;
-                int ssim_max_j;
+                int ssim_max_j = 0;
                 for (int j = 0; j < ovc; ++j) {
                     double now = calc_results_re[ind*ovc+j].ssim;
                     if (now > ssim_max) {
@@ -2328,6 +2407,10 @@ void MainWindow::show_detail()
         QMessageBox::warning(this, "詳細", "表示できるデータがありません。");
         return;
     }
+    if (n < 2 || calc_results.size() < (n - 1) || checkTF.size() < (n - 1)) {
+        QMessageBox::warning(this, "詳細", "表示するデータがありません。先に位置合わせ計算を実行してください。");
+        return;
+    }
 
     auto* model = new QStandardItemModel(this);
     model->setColumnCount(7);
@@ -2414,6 +2497,10 @@ void MainWindow::make_image()
         QMessageBox::warning(this, "画像作成", "出力できる画像がありません。");
         return;
     }
+    if (imgs.size() != n || poss.size() != n) {
+        QMessageBox::warning(this, "画像作成", "先に位置合わせ計算を実行してください。");
+        return;
+    }
 
     ui->label_6->setText("作成中");
     ui->pushButton_2->setEnabled(false);
@@ -2437,3 +2524,20 @@ void MainWindow::make_image()
         return out;
     }));
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
