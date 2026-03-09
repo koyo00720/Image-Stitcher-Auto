@@ -40,6 +40,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         cornerdirectionselector.h cornerdirectionselector.cpp
         autospinbox.h autospinbox.cpp
         detail_dialog.h detail_dialog.cpp
+        splash.qrc
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Image_Stitcher_Auto APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

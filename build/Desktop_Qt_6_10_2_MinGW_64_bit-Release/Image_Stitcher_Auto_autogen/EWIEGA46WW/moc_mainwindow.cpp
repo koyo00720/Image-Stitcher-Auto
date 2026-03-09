@@ -40,8 +40,12 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
     namespace QMC = QtMocConstants;
     QtMocHelpers::StringRefStorage qt_stringData {
         "MainWindow",
-        "onOpacity1Changed",
+        "fileInputFinished",
         "",
+        "calcFinished",
+        "makeimageFinished",
+        "exportFinished",
+        "onOpacity1Changed",
         "percent",
         "calc_iFFT",
         "make_image",
@@ -54,26 +58,34 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
     };
 
     QtMocHelpers::UintData qt_methods {
+        // Signal 'fileInputFinished'
+        QtMocHelpers::SignalData<void()>(1, 2, QMC::AccessPublic, QMetaType::Void),
+        // Signal 'calcFinished'
+        QtMocHelpers::SignalData<void()>(3, 2, QMC::AccessPublic, QMetaType::Void),
+        // Signal 'makeimageFinished'
+        QtMocHelpers::SignalData<void()>(4, 2, QMC::AccessPublic, QMetaType::Void),
+        // Signal 'exportFinished'
+        QtMocHelpers::SignalData<void()>(5, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onOpacity1Changed'
-        QtMocHelpers::SlotData<void(int)>(1, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 3 },
+        QtMocHelpers::SlotData<void(int)>(6, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 7 },
         }}),
         // Slot 'calc_iFFT'
-        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'make_image'
-        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'png_export'
-        QtMocHelpers::SlotData<void()>(6, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'calc_finish_1'
-        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'calc_finish_2'
         QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'show_detail'
+        // Slot 'make_image'
         QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onSceneSelectionChanged'
+        // Slot 'png_export'
         QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'calc_finish_1'
+        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'calc_finish_2'
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'show_detail'
+        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onSceneSelectionChanged'
+        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'posi_lock'
-        QtMocHelpers::SlotData<void(bool)>(11, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(15, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Bool, 2 },
         }}),
     };
@@ -99,17 +111,31 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
     auto *_t = static_cast<MainWindow *>(_o);
     if (_c == QMetaObject::InvokeMetaMethod) {
         switch (_id) {
-        case 0: _t->onOpacity1Changed((*reinterpret_cast<std::add_pointer_t<int>>(_a[1]))); break;
-        case 1: _t->calc_iFFT(); break;
-        case 2: _t->make_image(); break;
-        case 3: _t->png_export(); break;
-        case 4: _t->calc_finish_1(); break;
-        case 5: _t->calc_finish_2(); break;
-        case 6: _t->show_detail(); break;
-        case 7: _t->onSceneSelectionChanged(); break;
-        case 8: _t->posi_lock((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1]))); break;
+        case 0: _t->fileInputFinished(); break;
+        case 1: _t->calcFinished(); break;
+        case 2: _t->makeimageFinished(); break;
+        case 3: _t->exportFinished(); break;
+        case 4: _t->onOpacity1Changed((*reinterpret_cast<std::add_pointer_t<int>>(_a[1]))); break;
+        case 5: _t->calc_iFFT(); break;
+        case 6: _t->make_image(); break;
+        case 7: _t->png_export(); break;
+        case 8: _t->calc_finish_1(); break;
+        case 9: _t->calc_finish_2(); break;
+        case 10: _t->show_detail(); break;
+        case 11: _t->onSceneSelectionChanged(); break;
+        case 12: _t->posi_lock((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1]))); break;
         default: ;
         }
+    }
+    if (_c == QMetaObject::IndexOfMethod) {
+        if (QtMocHelpers::indexOfMethod<void (MainWindow::*)()>(_a, &MainWindow::fileInputFinished, 0))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (MainWindow::*)()>(_a, &MainWindow::calcFinished, 1))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (MainWindow::*)()>(_a, &MainWindow::makeimageFinished, 2))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (MainWindow::*)()>(_a, &MainWindow::exportFinished, 3))
+            return;
     }
 }
 
@@ -132,15 +158,39 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 9)
+        if (_id < 13)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 9;
+        _id -= 13;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 9)
+        if (_id < 13)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 9;
+        _id -= 13;
     }
     return _id;
+}
+
+// SIGNAL 0
+void MainWindow::fileInputFinished()
+{
+    QMetaObject::activate(this, &staticMetaObject, 0, nullptr);
+}
+
+// SIGNAL 1
+void MainWindow::calcFinished()
+{
+    QMetaObject::activate(this, &staticMetaObject, 1, nullptr);
+}
+
+// SIGNAL 2
+void MainWindow::makeimageFinished()
+{
+    QMetaObject::activate(this, &staticMetaObject, 2, nullptr);
+}
+
+// SIGNAL 3
+void MainWindow::exportFinished()
+{
+    QMetaObject::activate(this, &staticMetaObject, 3, nullptr);
 }
 QT_WARNING_POP

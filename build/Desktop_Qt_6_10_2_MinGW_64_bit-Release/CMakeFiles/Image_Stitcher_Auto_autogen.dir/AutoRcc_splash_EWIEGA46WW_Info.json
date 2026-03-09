@@ -1,0 +1,22 @@
+{
+	"BUILD_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/Image_Stitcher_Auto_autogen",
+	"CMAKE_BINARY_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release",
+	"CMAKE_CURRENT_BINARY_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release",
+	"CMAKE_CURRENT_SOURCE_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto",
+	"CMAKE_SOURCE_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto",
+	"CROSS_CONFIG" : false,
+	"GENERATOR" : "Ninja",
+	"INCLUDE_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/Image_Stitcher_Auto_autogen/include",
+	"INPUTS" : [ "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/splash.png" ],
+	"LOCK_FILE" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/Image_Stitcher_Auto_autogen.dir/AutoRcc_splash_EWIEGA46WW_Lock.lock",
+	"MULTI_CONFIG" : false,
+	"OPTIONS" : [ "--no-zstd", "-name", "splash" ],
+	"OUTPUT_CHECKSUM" : "EWIEGA46WW",
+	"OUTPUT_NAME" : "qrc_splash.cpp",
+	"RCC_EXECUTABLE" : "C:/Qt_OSS/6.10.2/mingw_64/bin/rcc.exe",
+	"RCC_LIST_OPTIONS" : [ "--list" ],
+	"SETTINGS_FILE" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/Image_Stitcher_Auto_autogen.dir/AutoRcc_splash_EWIEGA46WW_Used.txt",
+	"SOURCE" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/splash.qrc",
+	"USE_BETTER_GRAPH" : true,
+	"VERBOSITY" : 0
+}
