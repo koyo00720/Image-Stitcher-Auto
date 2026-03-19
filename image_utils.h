@@ -21,6 +21,18 @@ namespace ImageUtils {
     // 入力: logical配列 mask（CV_8U, 値0/1推奨。非0をtrue扱いでもOK）
     // 出力: 最大面積矩形の (x,y,w,h)。無ければ (0,0,0,0)
     cv::Rect maxRectOnesFromLogical(const cv::Mat1b& mask);
+
+    // trueなbitのみ抽出する
+    void extractMaskedChannels(
+        const cv::Mat1b& andImg,
+        const cv::Mat3b& src,
+        std::vector<double>& ch0,
+        std::vector<double>& ch1,
+        std::vector<double>& ch2);
+
+    // MSE計算
+    double calcMSE(const std::vector<double>& a,
+                   const std::vector<double>& b);
 }
 
 #endif // IMAGE_UTILS_H

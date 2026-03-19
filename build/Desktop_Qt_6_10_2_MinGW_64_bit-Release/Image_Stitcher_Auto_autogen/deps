@@ -32,6 +32,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib/OpenCVModules.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QFutureWatcher \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QHash \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QModelIndex \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QPoint \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QStringList \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q17memory.h \
@@ -181,6 +182,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qxptype_traits.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qyieldcpu.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QIcon \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QStandardItemModel \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QValidator \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qaction.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qbitmap.h \
@@ -205,6 +207,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qregion.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qrgb.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qrgba64.h \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qstandarditemmodel.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtextdocument.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtextoption.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtgui-config.h \
@@ -697,6 +700,8 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.cpp \
@@ -708,7 +713,13 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/main.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/splash.qrc \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.ui \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.ui \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.ui \
 	C:/Qt_OSS/Tools/CMake_64/bin/cmake.exe

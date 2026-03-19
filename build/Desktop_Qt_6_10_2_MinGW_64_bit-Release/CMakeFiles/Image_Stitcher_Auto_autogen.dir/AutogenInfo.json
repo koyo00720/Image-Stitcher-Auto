@@ -364,6 +364,12 @@
 			null
 		],
 		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.h",
+			"MU",
+			"EWIEGA46WW/moc_detail_opti_dialog.cpp",
+			null
+		],
+		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.h",
 			"MU",
 			"EWIEGA46WW/moc_droparea_wiz.cpp",
@@ -391,6 +397,18 @@
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.h",
 			"MU",
 			"EWIEGA46WW/moc_mainwindow.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.h",
+			"MU",
+			"EWIEGA46WW/moc_opti_settings.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.h",
+			"MU",
+			"EWIEGA46WW/moc_trws.cpp",
 			null
 		]
 	],
@@ -491,6 +509,11 @@
 			null
 		],
 		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.cpp",
+			"MU",
+			null
+		],
+		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.cpp",
 			"MU",
 			null
@@ -517,6 +540,16 @@
 		],
 		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.cpp",
 			"MU",
 			null
 		]

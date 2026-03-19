@@ -4,6 +4,8 @@
 #include "image_utils.h"
 #include "cornerdirectionselector.h"
 #include "detail_dialog.h"
+#include "trws.h"
+#include "opti_settings.h"
 
 #include <QFileDialog>
 #include <QString>
@@ -17,7 +19,7 @@
 #include <QIntValidator>
 #include <QImageReader>
 #include <QTimer>
-
+#include <QFuture>
 #include <QPointer>
 #include <QDebug>
 #include <QStandardItemModel>
@@ -28,6 +30,7 @@
 #include <algorithm>
 #include <cmath>
 #include <array>
+//#include <numeric>
 
 // iFFT用関数
 static cv::Mat1f clahe_then_grad(const cv::Mat& im_bgr)
@@ -529,6 +532,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // レイアウトロックのチェックボックス
     connect(ui->checkBox, &QCheckBox::toggled,this, &MainWindow::posi_lock);
 
+    // 全体最適化ボタン
+    connect(ui->pushButton_3, &QPushButton::clicked, this, &MainWindow::calc_TRWS);
+
     // 未実装部分をenableしない
     ui->radioButton_4->setEnabled(false);
     ui->radioButton_6->setEnabled(false);
@@ -538,6 +544,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->label_9->setText("なし");
     ui->label_8->setEnabled(false);
     ui->label_9->setEnabled(false);
+    ui->pushButton->setEnabled(false);
+    ui->pushButton_5->setEnabled(false);
 
     // 画像を作成 finish通知
     connect(&image_make_Watcher, &QFutureWatcher<cv::Mat>::finished, this, [this]() {
@@ -548,6 +556,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             emit makeimageFinished();
         }
     });
+    //ui->spinBox_4->setValue(2);
+
+    // 最適化ボタン
+    connect(ui->pushButton_6, &QPushButton::clicked, this, &MainWindow::show_opti_settings);
+    trwsWatcher = new QFutureWatcher<CalcTRWSoutput>(this);
+    connect(trwsWatcher, &QFutureWatcher<CalcTRWSoutput>::finished, this, [this]() {calc_TRWS_finish();});
+
+    // 最適化結果の詳細
+    connect(ui->pushButton_5, &QPushButton::clicked, this, &MainWindow::show_detail_opti);
+
+    m_detailDialog = new detail_opti_dialog(this);
 }
 
 MainWindow::~MainWindow()
@@ -556,6 +575,7 @@ MainWindow::~MainWindow()
     disconnect(&watcher, nullptr, this, nullptr);
     disconnect(&watcher_re, nullptr, this, nullptr);
     disconnect(&image_make_Watcher, nullptr, this, nullptr);
+    disconnect(trwsWatcher, nullptr, this, nullptr);
     if (scene) {
         disconnect(scene, nullptr, this, nullptr);
     }
@@ -563,6 +583,7 @@ MainWindow::~MainWindow()
     if (watcher.isRunning()) { watcher.cancel(); watcher.waitForFinished(); }
     if (watcher_re.isRunning()) { watcher_re.cancel(); watcher_re.waitForFinished(); }
     if (image_make_Watcher.isRunning()) { image_make_Watcher.cancel(); image_make_Watcher.waitForFinished(); }
+    if (trwsWatcher->isRunning()) { trwsWatcher->cancel(); trwsWatcher->waitForFinished(); }
     delete ui;
 }
 
@@ -652,6 +673,10 @@ void MainWindow::File_input_check(QStringList cli_paths)
     emit fileInputFinished(); // 完了通知
 }
 
+void MainWindow::File_input_dummy()
+{
+    emit fileInputFinished(); // 完了通知
+};
 
 QStringList MainWindow::onSortUpFname(QStringList input_files)
 {
@@ -689,6 +714,15 @@ QStringList MainWindow::onSortUpFname(QStringList input_files)
     return input_files;
 };
 
+// manualかautoの設定
+void MainWindow::set_manu_auto(int manu) {
+    if (manu == 0) {
+        ui->radioButton_6->setChecked(true);
+    } else {
+        ui->radioButton_5->setChecked(true);
+    }
+}
+
 // 画像同士の重なりの目安を設定
 void MainWindow::set_over_value(int o_x, int o_y, int o_r)
 {
@@ -725,15 +759,44 @@ void MainWindow::set_zigzag_value(int g)
 {
     if (g == 0) {
         ui->radioButton_4->setChecked(true);
-    } else if (g == 1) {
+    } else {
         ui->radioButton_3->setChecked(true);
     }
 }
 
+// 最適化設定値
+void MainWindow::set_opti_value(int i1,int i2,int i3,int i4,int i5,int i6,int i7,int i8,int i9)
+{
+    if (i1 == 1) {
+        pa_TF = true;
+    } else {
+        pa_TF = false;
+    }
+    pa_num = i2;
+    pa_radi = i3;
+    pa_opti = i4;
+    pa_itr = i5;
+    if (i6 == 1) {
+        all_TF = true;
+    } else {
+        all_TF = false;
+    }
+    all_radi = i7;
+    all_opti = i8;
+    all_itr = i9;
+}
+
 // 計算の実行
-void MainWindow::run_manual() {
-    calc_finish_sig = true;
-    calc_iFFT();
+void MainWindow::run_manual(int cal_st) {
+    if (cal_st == 2) {
+        cal_opti = true;
+    } else {
+        cal_opti = false;
+    }
+    if (cal_st == 1 || cal_st == 2) {
+        calc_finish_sig = true;
+        calc_iFFT();
+    }
 }
 
 
@@ -1052,13 +1115,18 @@ void MainWindow::calc_iFFT()
 
     ui->label_5->setText("計算中");
     ui->checkBox->setChecked(true);
-    ui->groupBox_5->setEnabled(false);
+    ui->checkBox->setEnabled(false);
+    //ui->groupBox_5->setEnabled(false);
     ui->pushButton_Calc1->setEnabled(false);
-    ui->pushButton->setEnabled(false);
+    //ui->pushButton->setEnabled(false);
     ui->label_4->setEnabled(false);
     ui->pushButton_4->setEnabled(false);
     ui->pushButton_2->setEnabled(false);
     ui->label_6->setText("");
+    ui->label_12->setText("");
+    ui->pushButton_3->setEnabled(false);
+    //ui->pushButton_5->setEnabled(false);
+    ui->pushButton_6->setEnabled(false);
 
     // 画像データをOpenCV向けに変換
     imgs.resize(n);
@@ -1389,9 +1457,10 @@ void MainWindow::calc_finish_1()
     if (has_calc_error) {
         ui->label_5->setText("計算失敗");
         output_img.release();
-        ui->groupBox_5->setEnabled(true);
+        //ui->groupBox_5->setEnabled(true);
         ui->pushButton_Calc1->setEnabled(true);
         ui->pushButton->setEnabled(false);
+        ui->checkBox->setEnabled(false);
         ui->label_4->setEnabled(false);
         ui->pushButton_4->setEnabled(false);
         ui->pushButton_2->setEnabled(false);
@@ -1670,15 +1739,25 @@ void MainWindow::calc_finish_1()
         items[i]->setPos(poss[i]);
     }
 
-    ui->groupBox_5->setEnabled(true);
+    //ui->groupBox_5->setEnabled(true);
     ui->pushButton_Calc1->setEnabled(true);
     ui->pushButton->setEnabled(true);
+    ui->checkBox->setEnabled(true);
     ui->label_4->setEnabled(true);
     ui->pushButton_4->setEnabled(true);
     ui->pushButton_2->setEnabled(true);
 
+    ui->pushButton_3->setEnabled(true);
+    //ui->pushButton_5->setEnabled(true);
+    ui->pushButton_6->setEnabled(true);
+    calc1_finished_state = true;
+
     if (calc_finish_sig && ryoukou) {
-        emit calcFinished();
+        if (cal_opti) {
+            calc_TRWS();
+        } else {
+            emit calcFinished();
+        }
     }
 }
 
@@ -1690,9 +1769,10 @@ void MainWindow::calc_finish_2()
     if (has_calc_error) {
         ui->label_5->setText("計算失敗");
         output_img.release();
-        ui->groupBox_5->setEnabled(true);
+        //ui->groupBox_5->setEnabled(true);
         ui->pushButton_Calc1->setEnabled(true);
         ui->pushButton->setEnabled(false);
+        ui->checkBox->setEnabled(true);
         ui->label_4->setEnabled(false);
         ui->pushButton_4->setEnabled(false);
         ui->pushButton_2->setEnabled(false);
@@ -2079,62 +2159,79 @@ void MainWindow::calc_finish_2()
         items[i]->setPos(poss[i]);
     }
 
-    ui->groupBox_5->setEnabled(true);
+    //ui->groupBox_5->setEnabled(true);
     ui->pushButton_Calc1->setEnabled(true);
     ui->pushButton->setEnabled(true);
+    ui->checkBox->setEnabled(true);
     ui->label_4->setEnabled(true);
     ui->pushButton_4->setEnabled(true);
     ui->pushButton_2->setEnabled(true);
+    ui->pushButton_3->setEnabled(true);
+    //ui->pushButton_5->setEnabled(true);
+    ui->pushButton_6->setEnabled(true);
+    calc1_finished_state = true;
 
     if (calc_finish_sig && ryoukou) {
-        emit calcFinished();
+        if (cal_opti) {
+            calc_TRWS();
+        } else {
+            emit calcFinished();
+        }
     }
 
 }
 
 void MainWindow::png_export() {
 
-    if (input_files.size() == 0 || output_img.empty()) {
-        QMessageBox::warning(this, "PNG export", "出力できる画像がありません。");
-        return;
+    if (!output_file.isEmpty()) {
+        cli_exp_image();
+    } else {
+        if (input_files.size() == 0 || output_img.empty()) {
+            QMessageBox::warning(this, "PNG export", "出力できる画像がありません。");
+            return;
+        }
+
+        QFileInfo fi(input_files[0]);
+        QDir dir = fi.dir();
+
+        QString newName = "stitched_" + fi.completeBaseName() + ".png";
+        QString initialPath = dir.filePath(newName);
+
+        QString newpath = QFileDialog::getSaveFileName(
+            this,
+            "Save File",
+            initialPath,
+            "PNG Image (*.png);;All Files (*.*)"
+            );
+
+        if (newpath.isEmpty()) // キャンセルが押された場合
+        {
+            return;
+        }
+
+        QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
+        qimg.save(newpath, "PNG");
     }
-
-    QFileInfo fi(input_files[0]);
-    QDir dir = fi.dir();
-
-    QString newName = "stitched_" + fi.completeBaseName() + ".png";
-    QString initialPath = dir.filePath(newName);
-
-    QString newpath = QFileDialog::getSaveFileName(
-        this,
-        "Save File",
-        initialPath,
-        "PNG Image (*.png);;All Files (*.*)"
-        );
-
-    if (newpath.isEmpty()) // キャンセルが押された場合
-    {
-        return;
-    }
-
-    QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
-    qimg.save(newpath, "PNG");
 }
 
+void MainWindow::set_output_path(QString out_p)
+{
+    output_file = out_p;
+};
 
-void MainWindow::cli_exp_image(QString out_p) {
+void MainWindow::cli_exp_image() {
     if (input_files.size() == 0 || output_img.empty()) {
         QMessageBox::warning(this, "PNG export", "出力できる画像がありません。");
         return;
     }
     QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
 
-    bool ok = qimg.save(out_p, "PNG");
+    bool ok = qimg.save(output_file, "PNG");
     if (!ok) {
         QMessageBox::critical(this, "保存エラー",
                               "画像を保存できませんでした。\n"
                               "出力先パスを確認してください。\n\n"
-                              "Path: " + out_p);
+                              "Path: " + output_file);
         return;
     }
 
@@ -2732,14 +2829,1348 @@ void MainWindow::make_image()
     }));
 }
 
+// 全体最適化ボタン_old
+/*
+void MainWindow::calc_TRWS()
+{
+    // 画像の数
+    const int N = input_files.size();
+    // 探索範囲を設定
+    const int radi = 2; // 半径1pixを探索する。
+    const int K = ((radi * 2) + 1) * ((radi * 2) + 1); // 状態数
+
+    // 各状態のx,yのシフト量を計算
+    QVector<QPoint> shifts;
+    shifts.reserve(K);
+    for (int y = -radi; y <= radi; ++y) { // 行優先
+        for (int x = -radi; x <= radi; ++x) {
+            shifts.push_back(QPoint(x,y));
+        }
+    }
+
+    // エッジを構築
+    std::vector<std::pair<int,int>> edges;
+    std::vector<std::vector<double>> pairCosts;
+    qDebug() << "edge lists (i,j)";
+    for (int i = 0; i < N; ++i) { // 1枚目画像を選択
+        cv::Mat img1 = imgs[i];
+        QSize res1 = res_all[i];
+        QPoint pos1 = poss[i];
+        cv::Mat1b mask1 = ImageUtils::alphaMaskFromBGRA(img1, 0.5);
+
+        for (int j = 0; j < N; ++j) { // 2枚目画像を選択
+            // 1枚目と2枚目が同じ場合
+            if (j <= i) continue; // 次のjへ
+            cv::Mat img2 = imgs[j];
+            QSize res2 = res_all[j];
+            QPoint pos2 = poss[j];
+            cv::Mat1b mask2 = ImageUtils::alphaMaskFromBGRA(img2, 0.5);
+
+            // デフォルト位置で重複が存在するか確認する
+            const int x_t1 = std::max(pos1.x()+res1.width(),pos2.x()+res2.width())
+                       - std::min(pos1.x(),pos2.x());
+            const int x_t2 = res1.width() + res2.width();
+            const int x_t3 = x_t2 - x_t1 - radi;
+            if (x_t3 <= 0) continue; // 次のjへ
+            const int y_t1 = std::max(pos1.y()+res1.height(),pos2.y()+res2.height())
+                             - std::min(pos1.y(),pos2.y());
+            const int y_t2 = res1.height() + res2.height();
+            const int y_t3 = y_t2 - y_t1 - radi;
+            if (y_t3 <= 0) continue; // 次のjへ
+
+            std::vector<bool> TF_temp(K * K, false); // エッジを張れるかどうか
+            std::vector<double> nowCost(K * K, 0.0); // そのエッジにおけるコスト
+            for (int k1 = 0; k1 < K; ++k1) { // 1枚目の状態選択
+                const int x1 = pos1.x() + shifts[k1].x();
+                const int y1 = pos1.y() + shifts[k1].y();
+                for (int k2 = 0; k2 < K; ++k2) { // 2枚目の状態選択
+                    const int x2 = pos2.x() + shifts[k2].x();
+                    const int y2 = pos2.y() + shifts[k2].y();
+                    // キャンパス上の座標を計算する
+                    const int x_c = std::min(x1,x2);
+                    const int x1c = x1 - x_c;
+                    const int x2c = x2 - x_c;
+                    const int y_c = std::min(y1,y2);
+                    const int y1c = y1 - y_c;
+                    const int y2c = y2 - y_c;
+                    // キャンパス作成（全てfalseで初期化）
+                    const int cam_hei = std::max(y1c+res1.height(),y2c+res2.height());
+                    const int cam_wid = std::max(x1c+res1.width(),x2c+res2.width());
+                    cv::Mat1b camp1(cam_hei, cam_wid, uchar(0));
+                    mask1.copyTo(camp1(cv::Rect(x1c, y1c, mask1.cols, mask1.rows)));
+                    cv::Mat1b camp2(cam_hei, cam_wid, uchar(0));
+                    mask2.copyTo(camp2(cv::Rect(x2c, y2c, mask2.cols, mask2.rows)));
+                    // 重なり領域検出
+                    cv::Mat1b andImg;
+                    cv::bitwise_and(camp1, camp2, andImg);
+                    // 重なりピクセル数をカウント
+                    int trueCount = cv::countNonZero(andImg);
+                    if (trueCount >= edge_th) {
+                        TF_temp[k1 * K + k2] = true;
+                        // 画像を3ch化
+                        cv::Mat img1_3ch, img2_3ch;
+                        cv::cvtColor(img1, img1_3ch, cv::COLOR_BGRA2BGR);
+                        cv::cvtColor(img2, img2_3ch, cv::COLOR_BGRA2BGR);
+                        // キャンパスに貼り付け
+                        cv::Mat3b camp1_3ch = cv::Mat3b::zeros(cam_hei, cam_wid);
+                        img1_3ch.copyTo(camp1_3ch(cv::Rect(x1c, y1c, img1_3ch.cols, img1_3ch.rows)));
+                        cv::Mat3b camp2_3ch = cv::Mat3b::zeros(cam_hei, cam_wid);
+                        img2_3ch.copyTo(camp2_3ch(cv::Rect(x2c, y2c, img2_3ch.cols, img2_3ch.rows)));
+                        // 重なりピクセルのみ抽出
+                        std::vector<double> im1_ch0, im1_ch1, im1_ch2;
+                        ImageUtils::extractMaskedChannels(andImg,camp1_3ch,im1_ch0,im1_ch1,im1_ch2);
+                        std::vector<double> im2_ch0, im2_ch1, im2_ch2;
+                        ImageUtils::extractMaskedChannels(andImg,camp2_3ch,im2_ch0,im2_ch1,im2_ch2);
+                        // コストを計算
+                        const double mse0 = ImageUtils::calcMSE(im1_ch0, im2_ch0);
+                        const double mse1 = ImageUtils::calcMSE(im1_ch1, im2_ch1);
+                        const double mse2 = ImageUtils::calcMSE(im1_ch2, im2_ch2);
+                        const double mse_mean = (mse0 + mse1 + mse2) / 3;
+                        nowCost[k1 * K + k2] = mse_mean;
+                    }
+                }
+            }
+            int falseCount = std::count(TF_temp.begin(), TF_temp.end(), false);
+            if (falseCount > 0) continue; // 次のjへ
+            // 変数格納
+            edges.push_back({i,j});
+            qDebug() << i << j;
+            pairCosts.push_back(nowCost);
+        }
+    }
+    // order は row-major そのまま
+    std::vector<int> order(N);
+    for (int i = 0; i < N; ++i) order[i] = i;
+
+    TRWS::Options opts;
+    opts.maxIter = 200;
+    opts.tol = 1e-8;
+    opts.stallIters = 10;
+
+    TRWS solver(N, K, edges, pairCosts, order, opts);
+    TRWSResult result = solver.run();
+
+    qDebug() << "iterations = " << result.iterations;
+    qDebug() << "energy     = " << result.energy;
+    qDebug() << "reward     = " << result.reward;
+
+    qDebug() << "labels:";
+    for (int l : result.labels) {
+        qDebug() << "x =" << shifts[l].x() << "  y =" << shifts[l].y();
+    }
+
+    qDebug() << "lower bound history:";
+    for (double v : result.lowerBoundHistory) {
+        qDebug() << v;
+    }
+}
+*/
+/*
+namespace
+{
+    struct PrecomputedImage
+    {
+        cv::Mat4b bgra;   // 元画像
+        cv::Mat3b bgr;    // 前処理済み
+        cv::Mat1b mask;   // 前処理済み
+        QPoint pos;
+        QSize  res;
+    };
+
+    struct PairTask
+    {
+        int i;
+        int j;
+    };
+
+    struct PairResult
+    {
+        bool valid = false;
+        int i = -1;
+        int j = -1;
+        std::vector<double> costs;
+    };
+
+    inline QRect shiftedRect(const QPoint& pos, const QPoint& shift, const QSize& sz)
+    {
+        return QRect(pos.x() + shift.x(),
+                     pos.y() + shift.y(),
+                     sz.width(),
+                     sz.height());
+    }
+
+    inline bool defaultMayOverlap(const PrecomputedImage& a,
+                                  const PrecomputedImage& b,
+                                  int radi)
+    {
+        const int x_t1 = std::max(a.pos.x() + a.res.width(),  b.pos.x() + b.res.width())
+        - std::min(a.pos.x(), b.pos.x());
+        const int x_t2 = a.res.width() + b.res.width();
+        const int x_t3 = x_t2 - x_t1 - radi;
+        if (x_t3 <= 0) return false;
+
+        const int y_t1 = std::max(a.pos.y() + a.res.height(), b.pos.y() + b.res.height())
+                         - std::min(a.pos.y(), b.pos.y());
+        const int y_t2 = a.res.height() + b.res.height();
+        const int y_t3 = y_t2 - y_t1 - radi;
+        if (y_t3 <= 0) return false;
+
+        return true;
+    }
+
+
+    // 重なり領域の MSE を直接計算
+    // 戻り値:
+    //   false = edge_th 未満
+    //   true  = 有効で mseOut に平均MSEを返す
+    bool computePairCostDirect(const PrecomputedImage& A,
+                               const PrecomputedImage& B,
+                               const QPoint& shiftA,
+                               const QPoint& shiftB,
+                               int edge_th,
+                               double& mseOut)
+    {
+        const QRect rectA = shiftedRect(A.pos, shiftA, A.res);
+        const QRect rectB = shiftedRect(B.pos, shiftB, B.res);
+        const QRect inter = rectA.intersected(rectB);
+
+        if (inter.isEmpty()) {
+            return false;
+        }
+
+        const int ax0 = inter.x() - rectA.x();
+        const int ay0 = inter.y() - rectA.y();
+        const int bx0 = inter.x() - rectB.x();
+        const int by0 = inter.y() - rectB.y();
+
+        const int w = inter.width();
+        const int h = inter.height();
+
+        // ROI取得
+        const cv::Rect roiA(ax0, ay0, w, h);
+        const cv::Rect roiB(bx0, by0, w, h);
+
+        const cv::Mat1b maskAroi = A.mask(roiA);
+        const cv::Mat1b maskBroi = B.mask(roiB);
+
+        // overlap mask
+        cv::Mat1b overlapMask;
+        cv::bitwise_and(maskAroi, maskBroi, overlapMask);
+
+        const int overlapCount = cv::countNonZero(overlapMask);
+        if (overlapCount < edge_th) {
+            return false;
+        }
+
+        const cv::Mat3b imgAroi = A.bgr(roiA);
+        const cv::Mat3b imgBroi = B.bgr(roiB);
+
+        double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0;
+
+        for (int y = 0; y < h; ++y) {
+            const uchar* m = overlapMask.ptr<uchar>(y);
+            const cv::Vec3b* pA = imgAroi.ptr<cv::Vec3b>(y);
+            const cv::Vec3b* pB = imgBroi.ptr<cv::Vec3b>(y);
+
+            for (int x = 0; x < w; ++x) {
+                if (!m[x]) continue;
+
+                const double d0 = double(pA[x][0]) - double(pB[x][0]);
+                const double d1 = double(pA[x][1]) - double(pB[x][1]);
+                const double d2 = double(pA[x][2]) - double(pB[x][2]);
+
+                sum0 += d0 * d0;
+                sum1 += d1 * d1;
+                sum2 += d2 * d2;
+            }
+        }
+
+        const double mse0 = sum0 / overlapCount;
+        const double mse1 = sum1 / overlapCount;
+        const double mse2 = sum2 / overlapCount;
+        mseOut = (mse0 + mse1 + mse2) / 3.0;
+        return true;
+    }
+
+    PairResult processOnePair(const PairTask& task,
+                              const std::vector<PrecomputedImage>& pre,
+                              const QVector<QPoint>& shifts,
+                              int K,
+                              int radi,
+                              int edge_th)
+    {
+        const int i = task.i;
+        const int j = task.j;
+
+        const auto& A = pre[i];
+        const auto& B = pre[j];
+
+        PairResult result;
+        result.i = i;
+        result.j = j;
+
+        if (!defaultMayOverlap(A, B, radi)) {
+            return result;
+        }
+
+        result.costs.resize(K * K);
+
+        for (int k1 = 0; k1 < K; ++k1) {
+            for (int k2 = 0; k2 < K; ++k2) {
+                double mse = 0.0;
+                const bool ok = computePairCostDirect(A, B,
+                                                      shifts[k1], shifts[k2],
+                                                      edge_th, mse);
+                if (!ok) {
+                    result.valid = false;
+                    result.costs.clear();
+                    return result; // 1つでもダメならこのpairは不採用
+                }
+                result.costs[k1 * K + k2] = mse;
+            }
+        }
+
+        result.valid = true;
+        return result;
+    }
+}
+
+
+// 全体最適化ボタン_PSNR
+void MainWindow::calc_TRWS()
+{
+    // 画像の数
+    const int N = input_files.size();
+    // 探索範囲を設定
+    const int K = ((radi * 2) + 1) * ((radi * 2) + 1); // 状態数
+
+    // 各状態のx,yのシフト量を計算
+    QVector<QPoint> shifts;
+    shifts.reserve(K);
+    for (int y = -radi; y <= radi; ++y) { // 行優先
+        for (int x = -radi; x <= radi; ++x) {
+            shifts.push_back(QPoint(x,y));
+        }
+    }
 
 
 
+    // エッジを構築
+    // 前処理
+    std::vector<PrecomputedImage> pre;
+    pre.reserve(N);
+
+    for (int i = 0; i < N; ++i) {
+        PrecomputedImage p;
+        p.bgra = imgs[i];
+        p.pos  = poss[i];
+        p.res  = res_all[i];
+
+        // ここは1回だけ
+        cv::cvtColor(p.bgra, p.bgr, cv::COLOR_BGRA2BGR);
+        p.mask = ImageUtils::alphaMaskFromBGRA(p.bgra, 0.5);
+
+        pre.push_back(std::move(p));
+    }
+
+    // ペア一覧を先に作る
+    std::vector<PairTask> tasks;
+    tasks.reserve(N * (N - 1) / 2);
+
+    for (int i = 0; i < N; ++i) {
+        for (int j = i + 1; j < N; ++j) {
+            tasks.push_back({i, j});
+        }
+    }
+
+    //qDebug() << "edge lists (i,j)";
+
+    // QtConcurrentでペア単位並列
+    auto mapFunc = [&](const PairTask& t) -> PairResult {
+        return processOnePair(t, pre, shifts, K, radi, edge_th);
+    };
+
+    auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
+        if (r.valid) {
+            out.push_back(r);
+        }
+    };
+
+    // ordered にすると元タスク順で reduce される
+    QVector<PairResult> results = QtConcurrent::blockingMappedReduced<QVector<PairResult>>(
+        tasks, mapFunc, reduceFunc, QtConcurrent::OrderedReduce);
+
+    // 結果を格納
+    std::vector<std::pair<int,int>> edges;
+    std::vector<std::vector<double>> pairCosts;
+
+    edges.reserve(results.size());
+    pairCosts.reserve(results.size());
+
+    for (const auto& r : std::as_const(results)) {
+        edges.push_back({r.i, r.j});
+        pairCosts.push_back(r.costs);
+        //qDebug() << r.i << r.j;
+    }
 
 
+    // order は row-major そのまま
+    std::vector<int> order(N);
+    for (int i = 0; i < N; ++i) order[i] = i;
+
+    TRWS::Options opts;
+    opts.maxIter = 1000;
+    opts.tol = 1e-5;
+    opts.stallIters = 10;
+
+    TRWS solver(N, K, edges, pairCosts, order, opts);
+    TRWSResult result = solver.run();
+
+    qDebug() << "iterations = " << result.iterations;
+    qDebug() << "energy     = " << result.energy;
+    qDebug() << "reward     = " << result.reward;
+
+    qDebug() << "labels:";
+    for (int l : result.labels) {
+        qDebug() << "x =" << shifts[l].x() << "  y =" << shifts[l].y();
+    }
+
+    // 変更を適用
+    for(int i = 0; i < N; ++i) {
+        poss[i] = QPoint(poss[i].x()+shifts[i].x(), poss[i].y()+shifts[i].y());
+    }
+
+    for(int i = 0; i < N; ++i) {
+        items[i]->setPos(poss[i]);
+    }
+
+    qDebug() << "lower bound history:";
+    for (double v : result.lowerBoundHistory) {
+        qDebug() << v;
+    }
+}
+*/
+
+// 全体最適化ボタン_SSIM
+/*
+void MainWindow::calc_TRWS()
+{
+    // 画像の数
+    const int N = input_files.size();
+    // 探索範囲を設定
+    const int radi = 2; // 半径1pixを探索する。
+    const int K = ((radi * 2) + 1) * ((radi * 2) + 1); // 状態数
+
+    // 各状態のx,yのシフト量を計算
+    QVector<QPoint> shifts;
+    shifts.reserve(K);
+    for (int y = -radi; y <= radi; ++y) { // 行優先
+        for (int x = -radi; x <= radi; ++x) {
+            shifts.push_back(QPoint(x,y));
+        }
+    }
+
+    // エッジを構築
+    std::vector<std::pair<int,int>> edges;
+    std::vector<std::vector<double>> pairCosts;
+    qDebug() << "edge lists (i,j)";
+    for (int i = 0; i < N; ++i) { // 1枚目画像を選択
+        cv::Mat img1 = imgs[i];
+        QSize res1 = res_all[i];
+        QPoint pos1 = poss[i];
+        cv::Mat1b mask1 = ImageUtils::alphaMaskFromBGRA(img1, 0.5);
+
+        for (int j = 0; j < N; ++j) { // 2枚目画像を選択
+            // 1枚目と2枚目が同じ場合
+            if (j <= i) continue; // 次のjへ
+            cv::Mat img2 = imgs[j];
+            QSize res2 = res_all[j];
+            QPoint pos2 = poss[j];
+            cv::Mat1b mask2 = ImageUtils::alphaMaskFromBGRA(img2, 0.5);
+
+            // デフォルト位置で重複が存在するか確認する
+            const int x_t1 = std::max(pos1.x()+res1.width(),pos2.x()+res2.width())
+                             - std::min(pos1.x(),pos2.x());
+            const int x_t2 = res1.width() + res2.width();
+            const int x_t3 = x_t2 - x_t1 - radi;
+            if (x_t3 <= 7) continue; // 次のjへ
+            const int y_t1 = std::max(pos1.y()+res1.height(),pos2.y()+res2.height())
+                             - std::min(pos1.y(),pos2.y());
+            const int y_t2 = res1.height() + res2.height();
+            const int y_t3 = y_t2 - y_t1 - radi;
+            if (y_t3 <= 7) continue; // 次のjへ
+
+            std::vector<bool> TF_temp(K * K, false); // エッジを張れるかどうか
+            std::vector<double> nowCost(K * K, 0.0); // そのエッジにおけるコスト
+            for (int k1 = 0; k1 < K; ++k1) { // 1枚目の状態選択
+                for (int k2 = 0; k2 < K; ++k2) { // 2枚目の状態選択
+                    TF_temp[k1 * K + k2] = true;
+                    nowCost[k1 * K + k2] = -SSIM_calc_oneshot(SSIM_TaskInput{img1,img2,res1,pos1,res2,pos2,shifts[k2].x()-shifts[k1].x(),shifts[k2].y()-shifts[k1].y()});
+                }
+            }
+            int falseCount = std::count(TF_temp.begin(), TF_temp.end(), false);
+            if (falseCount > 0) continue; // 次のjへ
+
+            // 変数格納
+            edges.push_back({i,j});
+            qDebug() << i << j;
+            pairCosts.push_back(nowCost);
+        }
+    }
+    // order は row-major そのまま
+    std::vector<int> order(N);
+    for (int i = 0; i < N; ++i) order[i] = i;
+
+    TRWS::Options opts;
+    opts.maxIter = 200;
+    opts.tol = 1e-8;
+    opts.stallIters = 10;
+
+    TRWS solver(N, K, edges, pairCosts, order, opts);
+    TRWSResult result = solver.run();
+
+    qDebug() << "iterations = " << result.iterations;
+    qDebug() << "energy     = " << result.energy;
+    qDebug() << "reward     = " << result.reward;
+
+    qDebug() << "labels:";
+    for (int l : result.labels) {
+        qDebug() << "x =" << shifts[l].x() << "  y =" << shifts[l].y();
+    }
+
+    qDebug() << "lower bound history:";
+    for (double v : result.lowerBoundHistory) {
+        qDebug() << v;
+
+    }
+
+    // 変更を適用
+    for(int i = 0; i < N; ++i) {
+        poss[i] = QPoint(poss[i].x()+shifts[i].x(), poss[i].y()+shifts[i].y());
+    }
+
+    for(int i = 0; i < N; ++i) {
+        items[i]->setPos(poss[i]);
+    }
+
+}
+*/
 
 
+namespace
+{
+struct PairTask
+{
+    int i;
+    int j;
+};
+
+struct ShiftDelta
+{
+    int dx;
+    int dy;
+};
+
+struct PairResult
+{
+    bool valid = false;
+    int i = -1;
+    int j = -1;
+    std::vector<double> costs;
+};
+
+inline bool defaultMayOverlap(const QSize& res1, const QPoint& pos1,
+                              const QSize& res2, const QPoint& pos2,
+                              int radi)
+{
+    const int x_t1 = std::max(pos1.x() + res1.width(),  pos2.x() + res2.width())
+    - std::min(pos1.x(), pos2.x());
+    const int x_t2 = res1.width() + res2.width();
+    const int x_t3 = x_t2 - x_t1 - radi;
+    if (x_t3 <= 7) return false;
+
+    const int y_t1 = std::max(pos1.y() + res1.height(), pos2.y() + res2.height())
+                     - std::min(pos1.y(), pos2.y());
+    const int y_t2 = res1.height() + res2.height();
+    const int y_t3 = y_t2 - y_t1 - radi;
+    if (y_t3 <= 7) return false;
+
+    return true;
+}
+
+PairResult processOnePair(
+    const PairTask& task,
+    const std::vector<cv::Mat>& imgs,
+    const QVector<QSize>& res_all,
+    const QVector<QPoint>& poss,
+    const std::vector<ShiftDelta>& deltas,
+    int K,
+    int radi)
+{
+    PairResult result;
+    result.i = task.i;
+    result.j = task.j;
+
+    const cv::Mat& img1 = imgs[task.i];
+    const cv::Mat& img2 = imgs[task.j];
+    const QSize& res1 = res_all[task.i];
+    const QSize& res2 = res_all[task.j];
+    const QPoint& pos1 = poss[task.i];
+    const QPoint& pos2 = poss[task.j];
+
+    result.costs.resize(K * K);
+
+    // dx,dy は [-2*radi, 2*radi]
+    const int diffSpan = 4 * radi + 1;
+
+    // キャッシュ
+    std::vector<double> cachedCosts(diffSpan * diffSpan, 0.0);
+    std::vector<unsigned char> computed(diffSpan * diffSpan, 0);
+
+    auto diffIndex = [diffSpan, radi](int dx, int dy) -> int {
+        return (dy + 2 * radi) * diffSpan + (dx + 2 * radi);
+    };
+
+    for (int idx = 0; idx < K * K; ++idx) {
+        const auto& d = deltas[idx];
+        const int ci = diffIndex(d.dx, d.dy);
+
+        if (!computed[ci]) {
+            double s_v = SSIM_calc_oneshot(
+                SSIM_TaskInput{
+                    img1, img2,
+                    res1, pos1,
+                    res2, pos2,
+                    d.dx, d.dy
+                }
+                );
+            cachedCosts[ci] = ((1 - s_v) / s_v) * ((1 - s_v) / s_v) / 81;
+            computed[ci] = 1;
+        }
+
+        result.costs[idx] = cachedCosts[ci];
+    }
+
+    result.valid = true;
+    return result;
+}
+}
+
+void MainWindow::calc_TRWS()
+{
+    if (trwsRunning) {
+        return; // 二重起動防止
+    }
+    trwsRunning = true;
+    ui->label_12->setText("計算中");
+
+    ui->pushButton_Calc1->setEnabled(false);
+    ui->pushButton_3->setEnabled(false);
+    ui->pushButton_4->setEnabled(false);
+    ui->pushButton_2->setEnabled(false);
+    //ui->pushButton_5->setEnabled(false);
+    ui->pushButton_6->setEnabled(false);
+
+    ui->checkBox->setChecked(true);
+    ui->checkBox->setEnabled(false);
+
+    //ui->groupBox_5->setEnabled(false);
+
+    CalcTRWSinput input;
+    input.imgs = imgs;
+    input.res_all = res_all;
+    input.poss = poss;
+    input.pa_TF = pa_TF;
+    input.pa_num = pa_num;
+    input.pa_radi = pa_radi;
+    input.pa_opti = pa_opti;
+    input.pa_itr = pa_itr;
+    input.all_TF = all_TF;
+    input.all_radi = all_radi;
+    input.all_opti = all_opti;
+    input.all_itr = all_itr;
+
+    auto future = QtConcurrent::run([=]() {
+        return calc_TRWS_core(input);
+    });
+
+    trwsWatcher->setFuture(future);
+
+}
+
+void MainWindow::calc_TRWS_finish()
+{
+
+    const CalcTRWSoutput out = trwsWatcher->result();
+    if (out.err.empty()) {
+        ui->label_12->setText("完了");
+        poss = out.poss;
+        const int N = poss.size();
+
+        // detail dialogへデータを投げる
+        const int odn = out.detail.size();
+        for (int od = 0; od < odn; ++od) {
+            m_detailDialog->setData(out.detail[od],out.log[od]);
+        }
+
+        bool ryoukou2 = false;
+        if (out.detail[odn-1].minSSIM > 0.1) {
+            ui->label_12->setText("良好");
+            ryoukou2 = true;
+        } else {
+            ui->label_12->setText("一部不良");
+        }
+
+        // UI更新
+        for (int i = 0; i < N; ++i) {
+            items[i]->setPos(poss[i]);
+        }
+
+        if (calc_finish_sig && ryoukou2) {
+            emit calcFinished();
+        }
+    } else {
+        ui->label_12->setText("不良");
+        QMessageBox::warning(this, "最適化計算", QString::fromStdString(out.err));
+
+    }
+    ui->pushButton_Calc1->setEnabled(true);
+    ui->pushButton_4->setEnabled(true);
+    ui->pushButton_2->setEnabled(true);
+    ui->pushButton_3->setEnabled(true);
+    ui->pushButton_5->setEnabled(true);
+    ui->pushButton_6->setEnabled(true);
+    ui->checkBox->setEnabled(true);
+
+    calc2_finished_state = true;
+    /*
+    std::vector<out_detail> det = out.detail;
+    for (int d = 0; d < det.size(); ++d) {
+        qDebug() << det[d].PaAll << det[d].start << det[d].end << det[d].itr << det[d].loop << det[d].shuusoku << det[d].lowSSIM_num << det[d].minSSIM << det[d].energy;
+    }
+    */
+    trwsRunning = false;
 
 
+}
+
+CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
+{
+    CalcTRWSoutput ret;
+    const int N = in.poss.size();
+    QVector<QPoint> in_poss = in.poss;
+    // 部分最適化
+    if (in.pa_TF) {
+        // edgeを計算
+        std::vector<PairTask> tasks;
+        tasks.reserve(N * (N - 1) / 2);
+
+        //qDebug() << "edge lists (i,j)";
+        for (int i = 0; i < N; ++i) {
+            const QSize& res1 = in.res_all[i];
+            const QPoint& pos1 = in_poss[i];
+
+            for (int j = i + 1; j < N; ++j) {
+                const QSize& res2 = in.res_all[j];
+                const QPoint& pos2 = in_poss[j];
+
+                if (!defaultMayOverlap(res1, pos1, res2, pos2, in.pa_radi * in.pa_itr)) {
+                    continue;
+                }
+                tasks.push_back({i, j});
+            }
+        }
+
+        int maxJ = -1;
+        for (const auto& t : tasks) {
+            if (t.i == 0 && t.j > maxJ) {
+                maxJ = t.j;
+            }
+        }
+
+        if (maxJ == -1) {
+            ret.err = "No loop structure was found.";
+            return ret;
+        }
+        int kaisu = maxJ / (in.pa_num * 2) + 1;
+        if (kaisu == 0) {
+            ret.err = "Something seems wrong.";
+            return ret;
+        }
+
+        std::vector<PairTask> imgId_list;
+        for (int ka = 1; ka <= kaisu; ++ka) {
+            std::vector<int> matchedI;
+            for (const auto& t : tasks) {
+                if (t.j - t.i == in.pa_num * ka) {
+                    matchedI.push_back(t.i);
+                }
+            }
+            if (matchedI.size() != 0) {
+                std::sort(matchedI.begin(), matchedI.end());
+                matchedI.erase(std::unique(matchedI.begin(), matchedI.end()), matchedI.end());
+
+                std::vector<int> filtered;
+                filtered.reserve(matchedI.size());
+                for (size_t k = 0; k < matchedI.size(); ++k) {
+                    const int x = matchedI[k];
+                    bool hasPrev = (k > 0 && matchedI[k - 1] == x - 1);
+                    bool hasNext = (k + 1 < matchedI.size() && matchedI[k + 1] == x + 1);
+                    if ((hasPrev || hasNext) && (x % 2 != 0)) {
+                        continue; // 連続ペアに含まれる奇数は捨てる
+                    }
+                    filtered.push_back(x);
+                }
+                matchedI = std::move(filtered);
+                for (int mi : matchedI) {
+                    imgId_list.push_back({mi, mi + (in.pa_num * ka)});
+                }
+            } else {
+                ret.err = "No large loop structure was found.";
+                return ret;
+            }
+        }
+
+        const int Kp = ((in.pa_radi * 2) + 1) * ((in.pa_radi * 2) + 1);
+
+        // 状態シフト
+        QVector<QPoint> shiftsp;
+        shiftsp.reserve(Kp);
+        for (int y = -in.pa_radi; y <= in.pa_radi; ++y) {
+            for (int x = -in.pa_radi; x <= in.pa_radi; ++x) {
+                shiftsp.push_back(QPoint(x, y));
+            }
+        }
+
+        // (k1, k2) -> (dx, dy) を前計算
+        std::vector<ShiftDelta> deltasp;
+        deltasp.resize(Kp * Kp);
+        for (int k1 = 0; k1 < Kp; ++k1) {
+            for (int k2 = 0; k2 < Kp; ++k2) {
+                deltasp[k1 * Kp + k2] = {
+                    shiftsp[k2].x() - shiftsp[k1].x(),
+                    shiftsp[k2].y() - shiftsp[k1].y()
+                };
+            }
+        }
+
+        //qDebug() << "calc lists";
+        for (PairTask p : imgId_list) {
+            //qDebug() << p.i << p.j;
+            out_detail det;
+            // edgeを抽出
+            std::vector<PairTask> task_now;
+            for (const auto& t : tasks) {
+                if (t.i >= p.i && t.i <= p.j && t.j >= p.i && t.j <= p.j) {
+                    task_now.push_back(t);
+                }
+            }
+            det.PaAll = true;
+            det.start = p.i + 1;
+            det.end = p.j + 1;
+            det.shuusoku = false;
+            if (task_now.size() > 0) {
+                int whi = 0;
+                while (whi < in.pa_itr) {
+                    whi++;
+                    det.loop = whi;
+                    // コスト計算用関数を作成
+                    //QThreadPool::globalInstance()->setMaxThreadCount(QThread::idealThreadCount());
+
+                    auto mapFunc = [&](const PairTask& t) -> PairResult {
+                        return processOnePair(t, in.imgs, in.res_all, in_poss, deltasp, Kp, in.pa_radi);
+                    };
+                    auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
+                        if (r.valid) {
+                            out.push_back(r);
+                        }
+                    };
+                    QVector<PairResult> results = QtConcurrent::blockingMappedReduced<QVector<PairResult>>(
+                            task_now, mapFunc, reduceFunc, QtConcurrent::OrderedReduce);
+
+                    std::vector<std::pair<int,int>> edges;
+                    std::vector<std::vector<double>> pairCosts;
+                    edges.reserve(results.size());
+                    pairCosts.reserve(results.size());
+
+                    for (const auto& r : std::as_const(results)) {
+                        edges.push_back({r.i - p.i, r.j - p.i});
+                        pairCosts.push_back(r.costs);
+                    }
 
 
+                    const int Np = p.j - p.i + 1;
+                    std::vector<int> order(Np);
+                    for (int i = 0; i < Np; ++i) {
+                        order[i] = i;
+                    }
+
+                    TRWS::Options opts;
+                    opts.maxIter = in.pa_opti;
+                    opts.tol = 1e-8;
+                    opts.stallIters = 10;
+                    std::vector<std::vector<double>> unaryCosts(Np, std::vector<double>(Kp, 0.0));
+                    int fixedLabel = -1;
+                    for (int l = 0; l < Kp; ++l) {
+                        if (shiftsp[l].x() == 0 && shiftsp[l].y() == 0) {
+                            fixedLabel = l;
+                            break;
+                        }
+                    }
+                    if (fixedLabel < 0) {
+                        ret.err = "fixed label not found";
+                        return ret;
+                    }
+                    const double INF = 1e100;
+                    for (int l = 0; l < Kp; ++l) {
+                        unaryCosts[0][l] = (l == fixedLabel) ? 0.0 : INF;
+                    }
+
+                    TRWS solver(Np, Kp, unaryCosts, edges, pairCosts, order, opts);
+                    TRWSResult result = solver.run();
+
+                    // 結果を表示
+                    det.itr = result.iterations;
+                    det.energy = result.energy;
+
+                    //qDebug() << "labels:";
+                    std::vector<int> xs_result, ys_result;
+                    xs_result.reserve(Np);
+                    ys_result.reserve(Np);
+                    for (int l : result.labels) {
+                        //qDebug() << "l =" << l << " x =" << shiftsp[l].x() << "  y =" << shiftsp[l].y();
+                        xs_result.push_back(shiftsp[l].x());
+                        ys_result.push_back(shiftsp[l].y());
+                    }
+
+                    int xsum = std::count_if(xs_result.begin(), xs_result.end(),[](int x) { return x != 0; });
+                    int ysum = std::count_if(ys_result.begin(), ys_result.end(),[](int x) { return x != 0; });
+                    if (xsum + ysum == 0) {
+                        det.shuusoku = true;
+                        break;
+                    }
+
+                    // poss更新
+                    for (int i = p.i + 1; i <= p.j; ++i) {
+                        in_poss[i] = QPoint(in_poss[i].x() + xs_result[i-p.i], in_poss[i].y() + ys_result[i-p.i]);
+                    }
+                    for (int i = p.j + 1; i < N; ++i) {
+                        in_poss[i] = QPoint(in_poss[i].x() + xs_result[Np-1], in_poss[i].y() + ys_result[Np-1]);
+                    }
+                }
+
+            }
+            out_log lo;
+            // ssim計算
+            // 対象ペアを先に列挙
+            std::vector<PairTask> taskss;
+            const int expectN = N * (N - 1) / 2;
+            taskss.reserve(expectN);
+            lo.edge1.reserve(expectN);
+            lo.edge2.reserve(expectN);
+            lo.ssim.reserve(expectN);
+            //qDebug() << "edge lists (i,j)";
+            for (int i = 0; i < N; ++i) {
+                const QSize& res1 = in.res_all[i];
+                const QPoint& pos1 = in_poss[i];
+
+                for (int j = i + 1; j < N; ++j) {
+                    const QSize& res2 = in.res_all[j];
+                    const QPoint& pos2 = in_poss[j];
+
+                    if (!defaultMayOverlap(res1, pos1, res2, pos2, 0)) {
+                        continue;
+                    }
+                    taskss.push_back({i, j});
+                    lo.edge1.push_back(i);
+                    lo.edge2.push_back(j);
+                }
+            }
+            /*
+            int ts_count = 0;
+            double ssim_min = 1.0;
+            for (PairTask ts : taskss) {
+                double s_v = SSIM_calc_oneshot(
+                    SSIM_TaskInput{
+                        in.imgs[ts.i], in.imgs[ts.j],
+                        in.res_all[ts.i], in_poss[ts.i],
+                        in.res_all[ts.j], in_poss[ts.j],
+                        0, 0
+                    }
+                    );
+                qDebug() << ts.i << ts.j << " :" << s_v;
+                lo.ssim.push_back(s_v);
+                if (s_v < ssim_min) {
+                    ssim_min = s_v;
+                }
+                if (s_v < 0.1) {
+                    ts_count++;
+                }
+            }
+            */
+
+            struct SsimEvalResult {
+                int i;
+                int j;
+                double ssim;
+            };
+
+            QVector<PairTask> taskVec = QVector<PairTask>(taskss.begin(), taskss.end());
+
+            QVector<SsimEvalResult> results = QtConcurrent::blockingMapped<QVector<SsimEvalResult>>(
+                taskVec,
+                [&](const PairTask& ts) -> SsimEvalResult {
+                    double s_v = SSIM_calc_oneshot(
+                        SSIM_TaskInput{
+                            in.imgs[ts.i], in.imgs[ts.j],
+                            in.res_all[ts.i], in_poss[ts.i],
+                            in.res_all[ts.j], in_poss[ts.j],
+                            0, 0
+                        }
+                        );
+                    return SsimEvalResult{ts.i, ts.j, s_v};
+                }
+                );
+
+            int ts_count = 0;
+            double ssim_min = 1.0;
+            lo.ssim.clear();
+            lo.ssim.reserve(results.size());
+
+            for (const auto& r : std::as_const(results)) {
+                //qDebug() << r.i << r.j << " :" << r.ssim;
+                lo.ssim.push_back(r.ssim);
+
+                if (r.ssim < ssim_min) {
+                    ssim_min = r.ssim;
+                }
+                if (r.ssim < 0.1) {
+                    ++ts_count;
+                }
+            }
+            //qDebug() << "low ssim :" << ts_count;
+            det.lowSSIM_num = ts_count;
+            det.minSSIM = ssim_min;
+            // 変数格納
+            ret.detail.push_back(det);
+            ret.log.push_back(lo);
+            ret.poss = in_poss;
+        }
+    }
+
+    // 全体最適化
+    if (in.all_TF) {
+        const int K = ((in.all_radi * 2) + 1) * ((in.all_radi * 2) + 1);
+
+        // 状態シフト
+        QVector<QPoint> shifts;
+        shifts.reserve(K);
+        for (int y = -in.all_radi; y <= in.all_radi; ++y) {
+            for (int x = -in.all_radi; x <= in.all_radi; ++x) {
+                shifts.push_back(QPoint(x, y));
+            }
+        }
+
+        // (k1, k2) -> (dx, dy) を前計算
+        std::vector<ShiftDelta> deltas;
+        deltas.resize(K * K);
+        for (int k1 = 0; k1 < K; ++k1) {
+            for (int k2 = 0; k2 < K; ++k2) {
+                deltas[k1 * K + k2] = {
+                    shifts[k2].x() - shifts[k1].x(),
+                    shifts[k2].y() - shifts[k1].y()
+                };
+            }
+        }
+
+        out_detail det;
+        det.PaAll = false;
+        det.start = 1;
+        det.end = N;
+        det.shuusoku = false;
+
+        int witr = 0;
+        while (witr < in.all_itr) {
+            witr++;
+            det.loop = witr;
+            // 対象ペアを先に列挙
+            std::vector<PairTask> tasks;
+            tasks.reserve(N * (N - 1) / 2);
+
+            //qDebug() << "edge lists (i,j)";
+            for (int i = 0; i < N; ++i) {
+                const QSize& res1 = in.res_all[i];
+                const QPoint& pos1 = in_poss[i];
+
+                for (int j = i + 1; j < N; ++j) {
+                    const QSize& res2 = in.res_all[j];
+                    const QPoint& pos2 = in_poss[j];
+
+                    if (!defaultMayOverlap(res1, pos1, res2, pos2, in.all_radi)) {
+                        continue;
+                    }
+                    tasks.push_back({i, j});
+                }
+            }
+
+            int maxJ = -1;
+            for (const auto& t : tasks) {
+                if (t.i == 0 && t.j > maxJ) {
+                    maxJ = t.j;
+                }
+            }
+
+            if (maxJ == -1) {
+                ret.err = "No loop structure was found.";
+                return ret;
+            }
+            int kaisu = maxJ / (in.pa_num * 2) + 1;
+            if (kaisu == 0) {
+                ret.err = "Something seems wrong.";
+                return ret;
+            }
+
+            // 必要ならスレッド数調整
+            //QThreadPool::globalInstance()->setMaxThreadCount(QThread::idealThreadCount());
+
+            auto mapFunc = [&](const PairTask& t) -> PairResult {
+                return processOnePair(t, in.imgs, in.res_all, in_poss, deltas, K, in.all_radi);
+            };
+            auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
+                if (r.valid) {
+                    out.push_back(r);
+                }
+            };
+
+            QVector<PairResult> results =
+                QtConcurrent::blockingMappedReduced<QVector<PairResult>>(
+                    tasks, mapFunc, reduceFunc, QtConcurrent::OrderedReduce);
+
+            std::vector<std::pair<int,int>> edges;
+            std::vector<std::vector<double>> pairCosts;
+            edges.reserve(results.size());
+            pairCosts.reserve(results.size());
+
+            for (const auto& r : std::as_const(results)) {
+                edges.push_back({r.i, r.j});
+                pairCosts.push_back(r.costs);
+                //qDebug() << r.i << r.j;
+            }
+
+            std::vector<int> order(N);
+            for (int i = 0; i < N; ++i) {
+                order[i] = i;
+            }
+
+            TRWS::Options opts;
+            opts.maxIter = in.all_opti;
+            opts.tol = 1e-8;
+            opts.stallIters = 10;
+            std::vector<std::vector<double>> unaryCosts(N, std::vector<double>(K, 0.0));
+            int fixedLabel = -1;
+            for (int l = 0; l < K; ++l) {
+                if (shifts[l].x() == 0 && shifts[l].y() == 0) {
+                    fixedLabel = l;
+                    break;
+                }
+            }
+            if (fixedLabel < 0) {
+                ret.err = "fixed label not found";
+                return ret;
+            }
+            const double INF = 1e100;
+            for (int l = 0; l < K; ++l) {
+                unaryCosts[maxJ][l] = (l == fixedLabel) ? 0.0 : INF;
+            }
+
+            TRWS solver(N, K, unaryCosts, edges, pairCosts, order, opts);
+            TRWSResult result = solver.run();
+
+            det.itr = result.iterations;
+            det.energy = result.energy;
+            /*
+            qDebug() << "iterations = " << result.iterations;
+            qDebug() << "energy     = " << result.energy;
+            qDebug() << "reward     = " << result.reward;
+
+            qDebug() << "labels:";
+            for (int l : result.labels) {
+                qDebug() << "x =" << shifts[l].x() << "  y =" << shifts[l].y();
+            }
+            */
+
+            /*
+            qDebug() << "lower bound history:";
+            for (double v : result.lowerBoundHistory) {
+                qDebug() << v;
+            }
+            */
+
+            // 最適ラベルを反映
+            for (int i = 0; i < N; ++i) {
+                const int label = result.labels[i];
+                in_poss[i] = QPoint(in_poss[i].x() + shifts[label].x(),
+                                 in_poss[i].y() + shifts[label].y());
+            }
+
+
+            // 収束判定
+            std::vector<int> xs_result, ys_result;
+            xs_result.reserve(N);
+            ys_result.reserve(N);
+            for (int l : result.labels) {
+                xs_result.push_back(shifts[l].x());
+                ys_result.push_back(shifts[l].y());
+            }
+
+            int xsum = std::count_if(xs_result.begin(), xs_result.end(),[](int x) { return x != 0; });
+            int ysum = std::count_if(ys_result.begin(), ys_result.end(),[](int x) { return x != 0; });
+            if (xsum + ysum == 0) {
+                det.shuusoku = true;
+                break;
+            }
+        }
+
+        out_log lo;
+        // ssim計算
+        // 対象ペアを先に列挙
+        std::vector<PairTask> taskss;
+        const int expectN = N * (N - 1) / 2;
+        taskss.reserve(expectN);
+        lo.edge1.reserve(expectN);
+        lo.edge2.reserve(expectN);
+        lo.ssim.reserve(expectN);
+        //qDebug() << "edge lists (i,j)";
+        for (int i = 0; i < N; ++i) {
+            const QSize& res1 = in.res_all[i];
+            const QPoint& pos1 = in_poss[i];
+
+            for (int j = i + 1; j < N; ++j) {
+                const QSize& res2 = in.res_all[j];
+                const QPoint& pos2 = in_poss[j];
+
+                if (!defaultMayOverlap(res1, pos1, res2, pos2, 0)) {
+                    continue;
+                }
+                taskss.push_back({i, j});
+                lo.edge1.push_back(i);
+                lo.edge2.push_back(j);
+            }
+        }
+        /*
+        int ts_count = 0;
+        double ssim_min = 1.0;
+        for (PairTask ts : taskss) {
+            double s_v = SSIM_calc_oneshot(
+                SSIM_TaskInput{
+                    in.imgs[ts.i], in.imgs[ts.j],
+                    in.res_all[ts.i], in_poss[ts.i],
+                    in.res_all[ts.j], in_poss[ts.j],
+                    0, 0
+                }
+                );
+            qDebug() << ts.i << ts.j << " :" << s_v;
+            lo.ssim.push_back(s_v);
+            if (s_v < ssim_min) {
+                ssim_min = s_v;
+            }
+            if (s_v < 0.1) {
+                ts_count++;
+            }
+        }
+        */
+        struct SsimEvalResult {
+            int i;
+            int j;
+            double ssim;
+        };
+
+        QVector<PairTask> taskVec = QVector<PairTask>(taskss.begin(), taskss.end());
+
+        QVector<SsimEvalResult> results = QtConcurrent::blockingMapped<QVector<SsimEvalResult>>(
+            taskVec,
+            [&](const PairTask& ts) -> SsimEvalResult {
+                double s_v = SSIM_calc_oneshot(
+                    SSIM_TaskInput{
+                        in.imgs[ts.i], in.imgs[ts.j],
+                        in.res_all[ts.i], in_poss[ts.i],
+                        in.res_all[ts.j], in_poss[ts.j],
+                        0, 0
+                    }
+                    );
+                return SsimEvalResult{ts.i, ts.j, s_v};
+            }
+            );
+
+        int ts_count = 0;
+        double ssim_min = 1.0;
+        lo.ssim.clear();
+        lo.ssim.reserve(results.size());
+
+        for (const auto& r : std::as_const(results)) {
+            //qDebug() << r.i << r.j << " :" << r.ssim;
+            lo.ssim.push_back(r.ssim);
+
+            if (r.ssim < ssim_min) {
+                ssim_min = r.ssim;
+            }
+            if (r.ssim < 0.1) {
+                ++ts_count;
+            }
+        }
+
+        //qDebug() << "low ssim :" << ts_count;
+        det.lowSSIM_num = ts_count;
+        det.minSSIM = ssim_min;
+
+        ret.detail.push_back(det);
+        ret.log.push_back(lo);
+        ret.poss = in_poss;
+    }
+    ret.err = "";
+    return ret;
+}
+
+void MainWindow::show_opti_settings()
+{
+    opti_settings dialog(this);
+    dialog.setValues(pa_num,pa_radi,pa_opti,pa_itr,all_radi,all_opti,all_itr,pa_TF,all_TF);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        // OKが押されたとき
+        std::vector<int> retV = dialog.getValues();
+        pa_num = retV[0];
+        pa_radi = retV[1];
+        pa_opti = retV[2];
+        pa_itr = retV[3];
+        all_radi = retV[4];
+        all_opti = retV[5];
+        all_itr = retV[6];
+        std::vector<bool> retTF = dialog.getTFs();
+        pa_TF = retTF[0];
+        all_TF = retTF[1];
+        if ((!pa_TF) && (!all_TF)) {
+            ui->pushButton_3->setEnabled(false);
+        } else if (!calc1_finished_state) {
+            ui->pushButton_3->setEnabled(false);
+        } else {
+            ui->pushButton_3->setEnabled(true);
+        }
+    }
+}
+
+
+void MainWindow::show_detail_opti()
+{
+    const int n = input_files.size();
+    if (n == 0) {
+        QMessageBox::warning(this, "最適化結果の詳細", "表示できるデータがありません。");
+        return;
+    }
+    if (!calc2_finished_state) {
+        QMessageBox::warning(this, "最適化結果の詳細", "表示するデータがありません。先に位置合わせ最適化計算を実行してください。");
+        return;
+    }
+
+    m_detailDialog->show();
+}

@@ -63,7 +63,7 @@ private:
     const int grid_size = 96;
     // const int grid_hight = 120;
     const int marginT = 1;
-    const int marginL = 4;
+    const int marginL = 8;
     const int marginD = 11;
     const int marginR = 10;
     const int spacing = 4;

@@ -29,6 +29,7 @@ C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64
   C:/OpenCV/opencv_install_qtmingw/include/opencv2/opencv_modules.hpp \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QFutureWatcher \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QHash \
+  C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QModelIndex \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q17memory.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20functional.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20iterator.h \
@@ -37,6 +38,7 @@ C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20utility.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q23type_traits.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q23utility.h \
+  C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qabstractitemmodel.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qalgorithms.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qalloc.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qanystringview.h \
@@ -171,6 +173,7 @@ C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qversiontagging.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qxptype_traits.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qyieldcpu.h \
+  C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QStandardItemModel \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qaction.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qbitmap.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qbrush.h \
@@ -194,6 +197,7 @@ C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qregion.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qrgb.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qrgba64.h \
+  C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qstandarditemmodel.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtextdocument.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtextoption.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtgui-config.h \
@@ -202,11 +206,13 @@ C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qtransform.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qwindowdefs.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/qwindowdefs_win.h \
+  C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QDialog \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QGraphicsScene \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QGraphicsView \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QLabel \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QMainWindow \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qabstractscrollarea.h \
+  C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qdialog.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qframe.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qgraphicsscene.h \
   C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qgraphicsview.h \
@@ -460,4 +466,5 @@ C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64
   C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/time.h \
   C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/vadefs.h \
   C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
-  C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/wctype.h
+  C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/wctype.h \
+  C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.h

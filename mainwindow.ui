@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1200</width>
-    <height>800</height>
+    <height>820</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -44,7 +44,7 @@
          <item row="0" column="1">
           <widget class="QRadioButton" name="radioButton_6">
            <property name="text">
-            <string>自動（未実装）</string>
+            <string>自動（未）</string>
            </property>
           </widget>
          </item>
@@ -74,7 +74,7 @@
          <item row="1" column="1">
           <widget class="QRadioButton" name="radioButton_4">
            <property name="text">
-            <string>↑↑ 一方向（未完成）</string>
+            <string>↑↑ 一方向（未）</string>
            </property>
           </widget>
          </item>
@@ -87,14 +87,17 @@
          <string>計算</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_7">
-         <item row="0" column="0" colspan="3">
-          <widget class="QPushButton" name="pushButton_Calc1">
+         <item row="1" column="1">
+          <widget class="QLabel" name="label_5">
            <property name="text">
-            <string>位置合わせ（位相相関法）</string>
+            <string/>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignCenter</set>
            </property>
           </widget>
          </item>
-         <item row="3" column="2">
+         <item row="6" column="2">
           <widget class="QLabel" name="label_6">
            <property name="text">
             <string/>
@@ -111,20 +114,10 @@
            </property>
           </widget>
          </item>
-         <item row="3" column="0" colspan="2">
+         <item row="6" column="0" colspan="2">
           <widget class="QPushButton" name="pushButton_2">
            <property name="text">
             <string>画像を作成</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QLabel" name="label_5">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
            </property>
           </widget>
          </item>
@@ -138,10 +131,41 @@
            </property>
           </widget>
          </item>
+         <item row="0" column="0" colspan="3">
+          <widget class="QPushButton" name="pushButton_Calc1">
+           <property name="text">
+            <string>位置合わせ（位相相関法）</string>
+           </property>
+          </widget>
+         </item>
          <item row="2" column="0" colspan="3">
           <widget class="QPushButton" name="pushButton_3">
            <property name="text">
-            <string>位置合わせ（全体最適化、未実装）</string>
+            <string>位置合わせ最適化（TRW-S-PAMI）</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="2">
+          <widget class="QPushButton" name="pushButton_5">
+           <property name="text">
+            <string>詳細</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLabel" name="label_12">
+           <property name="text">
+            <string/>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QPushButton" name="pushButton_6">
+           <property name="text">
+            <string>最適化設定</string>
            </property>
           </widget>
          </item>

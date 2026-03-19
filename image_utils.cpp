@@ -1,5 +1,6 @@
 #include "image_utils.h"
-
+#include <stdexcept>
+#include <cstddef>
 
 namespace ImageUtils {
 
@@ -107,6 +108,57 @@ cv::Rect maxRectOnesFromLogical(const cv::Mat1b& mask)
         bestRight - bestLeft + 1,
         bestBottom - bestTop + 1
         );
+}
+
+
+
+void extractMaskedChannels(
+    const cv::Mat1b& andImg,
+    const cv::Mat3b& src,
+    std::vector<double>& ch0,
+    std::vector<double>& ch1,
+    std::vector<double>& ch2)
+{
+    if (andImg.size() != src.size()) {
+        throw std::invalid_argument("andImg and src must have the same size.");
+    }
+
+    int N = cv::countNonZero(andImg);
+    ch0.clear();
+    ch1.clear();
+    ch2.clear();
+    ch0.reserve(N);
+    ch1.reserve(N);
+    ch2.reserve(N);
+
+    for (int y = 0; y < src.rows; ++y) {
+        for (int x = 0; x < src.cols; ++x) {
+            if (andImg(y, x)) {
+                const cv::Vec3b& pix = src(y, x);
+                ch0.push_back(static_cast<double>(pix[0]));
+                ch1.push_back(static_cast<double>(pix[1]));
+                ch2.push_back(static_cast<double>(pix[2]));
+            }
+        }
+    }
+}
+
+double calcMSE(const std::vector<double>& a, const std::vector<double>& b)
+{
+    if (a.size() != b.size()) {
+        throw std::invalid_argument("a and b must have the same size.");
+    }
+    if (a.empty()) {
+        throw std::invalid_argument("a and b must not be empty.");
+    }
+
+    double sum = 0.0;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        double d = a[i] - b[i];
+        sum += d * d;
+    }
+
+    return sum / static_cast<double>(a.size());
 }
 
 }
