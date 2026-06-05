@@ -56,9 +56,14 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         "onSceneSelectionChanged",
         "posi_lock",
         "calc_TRWS",
+        "calc_least_squares",
         "show_opti_settings",
+        "show_least_squares_settings",
+        "show_merge_settings",
         "calc_TRWS_finish",
-        "show_detail_opti"
+        "calc_least_squares_finish",
+        "show_detail_opti",
+        "show_detail_least_squares"
     };
 
     QtMocHelpers::UintData qt_methods {
@@ -94,12 +99,22 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         }}),
         // Slot 'calc_TRWS'
         QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'show_opti_settings'
+        // Slot 'calc_least_squares'
         QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'calc_TRWS_finish'
+        // Slot 'show_opti_settings'
         QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'show_detail_opti'
+        // Slot 'show_least_squares_settings'
         QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'show_merge_settings'
+        QtMocHelpers::SlotData<void()>(20, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'calc_TRWS_finish'
+        QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'calc_least_squares_finish'
+        QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'show_detail_opti'
+        QtMocHelpers::SlotData<void()>(23, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'show_detail_least_squares'
+        QtMocHelpers::SlotData<void()>(24, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -137,9 +152,14 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 11: _t->onSceneSelectionChanged(); break;
         case 12: _t->posi_lock((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1]))); break;
         case 13: _t->calc_TRWS(); break;
-        case 14: _t->show_opti_settings(); break;
-        case 15: _t->calc_TRWS_finish(); break;
-        case 16: _t->show_detail_opti(); break;
+        case 14: _t->calc_least_squares(); break;
+        case 15: _t->show_opti_settings(); break;
+        case 16: _t->show_least_squares_settings(); break;
+        case 17: _t->show_merge_settings(); break;
+        case 18: _t->calc_TRWS_finish(); break;
+        case 19: _t->calc_least_squares_finish(); break;
+        case 20: _t->show_detail_opti(); break;
+        case 21: _t->show_detail_least_squares(); break;
         default: ;
         }
     }
@@ -174,14 +194,14 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 17)
+        if (_id < 22)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 17;
+        _id -= 22;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 17)
+        if (_id < 22)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 17;
+        _id -= 22;
     }
     return _id;
 }

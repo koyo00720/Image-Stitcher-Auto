@@ -352,6 +352,12 @@
 			null
 		],
 		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.h",
+			"MU",
+			"EWIEGA46WW/moc_canvas_history_graph_widget.cpp",
+			null
+		],
+		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.h",
 			"MU",
 			"EWIEGA46WW/moc_cornerdirectionselector.cpp",
@@ -394,9 +400,21 @@
 			null
 		],
 		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.h",
+			"MU",
+			"EWIEGA46WW/moc_least_squares_settings.cpp",
+			null
+		],
+		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.h",
 			"MU",
 			"EWIEGA46WW/moc_mainwindow.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.h",
+			"MU",
+			"EWIEGA46WW/moc_merge_settings.cpp",
 			null
 		],
 		[
@@ -499,6 +517,11 @@
 			null
 		],
 		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.cpp",
+			"MU",
+			null
+		],
+		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.cpp",
 			"MU",
 			null
@@ -534,12 +557,22 @@
 			null
 		],
 		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.cpp",
+			"MU",
+			null
+		],
+		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/main.cpp",
 			"MU",
 			null
 		],
 		[
 			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.cpp",
 			"MU",
 			null
 		],

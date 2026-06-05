@@ -296,7 +296,6 @@ int main(int argc, char *argv[])
 
     QObject::connect(&w, &MainWindow::fileInputFinished, &w,
                      [&w,&splash,manu,o_x,o_y,o_r,ar,arh,arv,zig,pa0,pa1,pa2,pa3,pa4,al0,al2,al3,al4,ca,&out_p,closeTF]() {
-                        w.set_manu_auto(manu);
                         w.set_over_value(o_x, o_y, o_r);
                         w.set_array_value(ar, arh, arv);
                         w.set_zigzag_value(zig);

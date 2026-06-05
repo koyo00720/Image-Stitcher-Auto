@@ -30,11 +30,16 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib/OpenCVConfig.cmake \
 	C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib/OpenCVModules-release.cmake \
 	C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib/OpenCVModules.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QElapsedTimer \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QFutureWatcher \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QHash \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QModelIndex \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QPoint \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QPointF \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QRect \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QString \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QStringList \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QVector \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q17memory.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20functional.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20iterator.h \
@@ -75,6 +80,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qdatastream.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qdeadlinetimer.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qdebug.h \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qelapsedtimer.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qendian.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qexception.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qexceptionhandling.h \
@@ -178,9 +184,11 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qutf8stringview.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qvariant.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qvarlengtharray.h \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qvector.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qversiontagging.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qxptype_traits.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/qyieldcpu.h \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QColor \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QIcon \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QStandardItemModel \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtGui/QValidator \
@@ -696,6 +704,8 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/Image_Stitcher_Auto_autogen/moc_predefs.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/campus.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/campus.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.cpp \
@@ -710,9 +720,13 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/filetablewidget.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/image_utils.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/image_utils.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/main.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.cpp \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/splash.qrc \
@@ -720,6 +734,8 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.ui \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.ui \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.ui \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.ui \
 	C:/Qt_OSS/Tools/CMake_64/bin/cmake.exe

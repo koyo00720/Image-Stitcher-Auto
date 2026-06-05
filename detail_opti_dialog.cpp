@@ -1,6 +1,8 @@
 #include "detail_opti_dialog.h"
 #include "ui_detail_opti_dialog.h"
+#include <QHeaderView>
 #include <QSplitter>
+#include <QSortFilterProxyModel>
 #include <QVBoxLayout>
 #include <QSizePolicy>
 
@@ -13,6 +15,12 @@ detail_opti_dialog::detail_opti_dialog(QWidget *parent)
     m_tableModel = new QStandardItemModel(this);
     ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableView->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->tableView_2->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->tableView_2->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->tableView_2->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->tableView_2->setSortingEnabled(true);
+    ui->tableView_2->horizontalHeader()->setSortIndicatorShown(true);
     connect(ui->pushButton, &QPushButton::clicked, this, &detail_opti_dialog::refreshUi);
 
     ui->groupBox->setMinimumHeight(80);
@@ -112,7 +120,9 @@ void detail_opti_dialog::onCurrentRowChanged(const QModelIndex& current, const Q
 
     const int D = data_sel.ssim.size();
 
-    QStandardItemModel* m_tableModel_2 = new QStandardItemModel(this);
+    QAbstractItemModel* oldModel = ui->tableView_2->model();
+    auto* proxy = new QSortFilterProxyModel(ui->tableView_2);
+    auto* m_tableModel_2 = new QStandardItemModel(proxy);
     m_tableModel_2->setColumnCount(3);
     m_tableModel_2->setRowCount(D);
 
@@ -121,16 +131,38 @@ void detail_opti_dialog::onCurrentRowChanged(const QModelIndex& current, const Q
     m_tableModel_2->setHeaderData(2, Qt::Horizontal, "SSIM");
 
     for (int n = 0; n < D; ++n) {
-        // 全セルにデータを格納
-        m_tableModel_2->setData(m_tableModel_2->index(n, 0), data_sel.edge1[n]);
-        m_tableModel_2->setData(m_tableModel_2->index(n, 1), data_sel.edge2[n]);
-        m_tableModel_2->setData(m_tableModel_2->index(n, 2), data_sel.ssim[n]);
+        const int edge1 = data_sel.edge1[n] + 1;
+        const int edge2 = data_sel.edge2[n] + 1;
+        const double ssim = data_sel.ssim[n];
+
+        auto* item1 = new QStandardItem(QString::number(edge1));
+        item1->setData(edge1, Qt::UserRole);
+        m_tableModel_2->setItem(n, 0, item1);
+
+        auto* item2 = new QStandardItem(QString::number(edge2));
+        item2->setData(edge2, Qt::UserRole);
+        m_tableModel_2->setItem(n, 1, item2);
+
+        auto* item3 = new QStandardItem(QString::number(ssim, 'f', 4));
+        item3->setData(ssim, Qt::UserRole);
+        m_tableModel_2->setItem(n, 2, item3);
+
         // 全セルを中央揃え
         for (int i = 0; i < 3; ++i) {
             m_tableModel_2->setData(m_tableModel_2->index(n, i), Qt::AlignCenter, Qt::TextAlignmentRole);
         }
     }
 
-    ui->tableView_2->setModel(m_tableModel_2);
+    proxy->setSourceModel(m_tableModel_2);
+    proxy->setSortRole(Qt::UserRole);
+    proxy->setDynamicSortFilter(true);
+
+    ui->tableView_2->setModel(proxy);
+    ui->tableView_2->resizeColumnsToContents();
+    ui->tableView_2->sortByColumn(0, Qt::AscendingOrder);
+
+    if (oldModel) {
+        oldModel->deleteLater();
+    }
 
 }

@@ -7,9 +7,14 @@
 #include <QLabel>
 #include <QFutureWatcher>
 #include <QHash>
+#include <QElapsedTimer>
+#include <QString>
+#include <QColor>
 
 #include <opencv2/core.hpp>
+#include "canvas_history_graph_widget.h"
 #include "detail_opti_dialog.h"
+#include <functional>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -20,6 +25,12 @@ QT_END_NAMESPACE
 class QLabel;
 class CornerDirectionSelector;
 class detail_opti_dialog;
+class QDialog;
+class QProgressBar;
+class QScrollArea;
+class QLineEdit;
+class QPushButton;
+class QGraphicsRectItem;
 
 struct return_struct1 {
     double score = 0.0;
@@ -76,6 +87,9 @@ struct CalcTRWSinput
     QVector<QPoint> poss;
     bool pa_TF;
     int pa_num;
+    bool pa_auto_increment_TF;
+    int pa_increment;
+    int pa_increment_count;
     int pa_radi;
     int pa_opti;
     int pa_itr;
@@ -83,6 +97,7 @@ struct CalcTRWSinput
     int all_radi;
     int all_opti;
     int all_itr;
+    std::function<void(int, int, const QString&)> progressCallback;
 };
 
 /*
@@ -112,6 +127,59 @@ struct CalcTRWSoutput {
     std::string err;
 };
 
+struct LeastSquaresStitchSettings {
+    double regressionThreshold = 0.3;
+    double relativeThreshold = 2.5;
+    double absoluteThreshold = 3.5;
+    double maxPairErrorForRelative = 0.95;
+};
+
+enum class ImageMergeMode {
+    DistanceL2 = 0,
+    FocusRegion = 1,
+    FocusStackTenengrad = 2
+};
+
+struct ImageMergeSettings {
+    ImageMergeMode mode = ImageMergeMode::FocusRegion;
+};
+
+struct CalcLeastSquaresInput {
+    std::vector<cv::Mat> imgs;
+    QVector<QSize> res_all;
+    QVector<QPoint> poss;
+    int calc_loop_num = 5;
+    LeastSquaresStitchSettings settings;
+    std::function<void(int, int, const QString&)> progressCallback;
+};
+
+struct LeastSquaresPairDetail {
+    int img1 = -1;
+    int img2 = -1;
+    QString status;
+    int loop_num = 0;
+    bool stability = false;
+    double score = 0.0;
+    double measuredSsim = 0.0;
+    double optimizedSsim = 0.0;
+    double measuredDx = 0.0;
+    double measuredDy = 0.0;
+    double optimizedDx = 0.0;
+    double optimizedDy = 0.0;
+    double residual = 0.0;
+};
+
+struct CalcLeastSquaresOutput {
+    QVector<QPoint> poss;
+    std::vector<LeastSquaresPairDetail> details;
+    int acceptedPairs = 0;
+    int removedPairs = 0;
+    double avgError = 0.0;
+    double maxError = 0.0;
+    double minSsim = 0.0;
+    std::string err;
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -128,9 +196,7 @@ public:
     void File_input_check(QStringList);
     void File_input_UI();
     void File_input_dummy();
-    void set_manu_auto(int);
     void set_over_value(int, int, int);
-    //int get_inputF_num() {return input_files.size();};
     void set_array_value(int, int, int);
     void set_zigzag_value(int);
     void set_opti_value(int,int,int,int,int,int,int,int,int);
@@ -157,9 +223,17 @@ private slots:
     void onSceneSelectionChanged(); // キャンパス内の画像を選択
     void posi_lock(bool); // 画像レイアウトをロック
     void calc_TRWS();
+    void calc_least_squares();
     void show_opti_settings();
+    void show_least_squares_settings();
+    void show_merge_settings();
     void calc_TRWS_finish();
+    void calc_least_squares_finish();
     void show_detail_opti();
+    void show_detail_least_squares();
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -204,6 +278,51 @@ private:
 
     // 位置合わせ再計算関数
     void calc_iFFT_rerun();
+
+    void applySceneMoveMode(bool enabled);
+    QVector<QPoint> readScenePositions() const;
+    void syncPossFromScene();
+    void arrangeSettingsChanged();
+    int imageIndexAtScenePos(const QPointF& scenePos) const;
+    void selectImageRange(int first, int last);
+    void applyCanvasPositions(const QVector<QPoint>& positions);
+    void recordCanvasHistory(int markers = CanvasHistoryMarkerNone);
+    void undoCanvasHistory();
+    void redoCanvasHistory();
+    void showCanvasHistoryDialog();
+    void refreshCanvasHistoryDialog();
+    void scrollCanvasHistoryToCurrent();
+    void restoreCanvasHistoryNode(int nodeIndex);
+    int latestCanvasHistoryNode() const;
+    bool samePositions(const QVector<QPoint>& a, const QVector<QPoint>& b) const;
+    bool isAlignmentOrOptimizationRunning() const;
+    QString formatSelectedImageIndices(QVector<int> indices) const;
+    QVector<int> parseImageIndexSpec(const QString& text, QString* errorMessage) const;
+    void showImageHighlightDialog();
+    void updateImageHighlightColorButton();
+    void applyImageHighlightsFromDialog();
+    void clearImageHighlights();
+    void clearImageHighlightRects();
+    void rebuildImageHighlights();
+    void showOptimizationProgressDialog();
+    void updateOptimizationProgress(int value, int maximum, const QString& text);
+    void hideOptimizationProgressDialog();
+    QString formatDuration(qint64 milliseconds) const;
+    int sceneSelectionAnchor = -1;
+    QVector<QPoint> sceneMousePressPositions;
+    QVector<CanvasHistoryNode> canvasHistoryTree;
+    int currentCanvasHistoryNode = -1;
+    int nextCanvasHistorySequence = 1;
+    bool restoringCanvasHistory = false;
+    QDialog* canvasHistoryDialog = nullptr;
+    CanvasHistoryGraphWidget* canvasHistoryGraphWidget = nullptr;
+    QScrollArea* canvasHistoryScrollArea = nullptr;
+    QDialog* imageHighlightDialog = nullptr;
+    QLineEdit* imageHighlightEdit = nullptr;
+    QPushButton* imageHighlightColorButton = nullptr;
+    QColor imageHighlightColor = QColor(255, 64, 64);
+    QVector<int> imageHighlightIndices;
+    QVector<QGraphicsRectItem*> imageHighlightRects;
 
     int calc_loop_num = 5; // 最大5回ループ計算する
 
@@ -278,6 +397,15 @@ private:
     // 部分最適化計算の画像枚数
     int pa_num = 6;
 
+    // 部分最適化計算で収束時に画像枚数を増やすかどうか
+    bool pa_auto_increment_TF = false;
+
+    // 部分最適化計算の画像枚数増分
+    int pa_increment = 0;
+
+    // 部分最適化計算の画像枚数増分の実行回数
+    int pa_increment_count = 1;
+
     // 部分最適化計算の最大移動距離
     int pa_radi = 2; // 半径3pixを探索する。
 
@@ -304,19 +432,26 @@ private:
     bool trwsRunning = false;
     CalcTRWSoutput calc_TRWS_core(CalcTRWSinput);
 
+    QFutureWatcher<CalcLeastSquaresOutput>* leastSquaresWatcher = nullptr;
+    bool leastSquaresRunning = false;
+    LeastSquaresStitchSettings leastSquaresSettings;
+    CalcLeastSquaresOutput calc_least_squares_core(CalcLeastSquaresInput);
+    std::vector<LeastSquaresPairDetail> leastSquaresDetails;
+
+    ImageMergeSettings imageMergeSettings;
+
     // 計算状態制御用
     bool calc1_finished_state = false;
     bool calc2_finished_state = false;
 
     detail_opti_dialog* m_detailDialog = nullptr;
 
-    bool cal_opti = false;
-};
+    QDialog* optimizationProgressDialog = nullptr;
+    QLabel* optimizationProgressLabel = nullptr;
+    QProgressBar* optimizationProgressBar = nullptr;
+    QElapsedTimer optimizationProgressTimer;
 
-class MyGraphicsView : public QGraphicsView
-{
-protected:
-    void wheelEvent(QWheelEvent *event) override;
+    bool cal_opti = false;
 };
 
 

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>520</width>
-    <height>367</height>
+    <width>550</width>
+    <height>398</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -150,43 +150,7 @@
       <string/>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
-      <item row="2" column="2">
-       <widget class="QSpinBox" name="spinBox_2">
-        <property name="minimum">
-         <number>20</number>
-        </property>
-        <property name="maximum">
-         <number>100000</number>
-        </property>
-        <property name="value">
-         <number>5000</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSlider" name="horizontalSlider">
-        <property name="minimum">
-         <number>4</number>
-        </property>
-        <property name="maximum">
-         <number>10</number>
-        </property>
-        <property name="value">
-         <number>6</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_3">
-        <property name="text">
-         <string>最大ループ回数</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
+      <item row="4" column="5">
        <widget class="QSpinBox" name="spinBox_3">
         <property name="minimum">
          <number>1</number>
@@ -199,10 +163,96 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="1" column="0" colspan="2">
+       <widget class="QCheckBox" name="checkBox_3">
+        <property name="text">
+         <string>収束時に画像枚数の自動追加による追加実行を行う</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>最大ループ回数</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="5">
+       <widget class="QSpinBox" name="spinBox_4">
+        <property name="suffix">
+         <string> pix</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>10</number>
+        </property>
+        <property name="value">
+         <number>3</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>最大計算回数</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="5">
+       <widget class="QSpinBox" name="spinBox_2">
+        <property name="minimum">
+         <number>20</number>
+        </property>
+        <property name="maximum">
+         <number>100000</number>
+        </property>
+        <property name="value">
+         <number>5000</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QSpinBox" name="spinBox_9">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="5">
+       <widget class="QSpinBox" name="spinBox">
+        <property name="minimum">
+         <number>4</number>
+        </property>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+        <property name="value">
+         <number>4</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>探索範囲半径</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="5">
+       <widget class="QSpinBox" name="spinBox_8">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>100</number>
+        </property>
+        <property name="value">
+         <number>1</number>
         </property>
        </widget>
       </item>
@@ -213,59 +263,43 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
-       <widget class="QSlider" name="horizontalSlider_3">
-        <property name="minimum">
-         <number>1</number>
+      <item row="1" column="2">
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>インクリメント</string>
         </property>
-        <property name="maximum">
-         <number>20</number>
-        </property>
-        <property name="value">
-         <number>5</number>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
         </property>
        </widget>
       </item>
-      <item row="0" column="2">
-       <widget class="QSpinBox" name="spinBox">
+      <item row="1" column="4">
+       <widget class="QLabel" name="label_9">
+        <property name="text">
+         <string>回数</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="4">
+       <widget class="QSlider" name="horizontalSlider">
         <property name="minimum">
          <number>4</number>
         </property>
         <property name="maximum">
-         <number>10</number>
+         <number>100</number>
         </property>
         <property name="value">
-         <number>6</number>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QSlider" name="horizontalSlider_2">
-        <property name="minimum">
-         <number>20</number>
-        </property>
-        <property name="maximum">
-         <number>100000</number>
-        </property>
-        <property name="value">
-         <number>5000</number>
+         <number>4</number>
         </property>
         <property name="orientation">
          <enum>Qt::Orientation::Horizontal</enum>
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>探索範囲半径</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
+      <item row="2" column="1" colspan="4">
        <widget class="QSlider" name="horizontalSlider_4">
         <property name="minimum">
          <number>1</number>
@@ -281,19 +315,35 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="2">
-       <widget class="QSpinBox" name="spinBox_4">
-        <property name="suffix">
-         <string> pix</string>
+      <item row="3" column="1" colspan="4">
+       <widget class="QSlider" name="horizontalSlider_2">
+        <property name="minimum">
+         <number>20</number>
         </property>
+        <property name="maximum">
+         <number>100000</number>
+        </property>
+        <property name="value">
+         <number>5000</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1" colspan="4">
+       <widget class="QSlider" name="horizontalSlider_3">
         <property name="minimum">
          <number>1</number>
         </property>
         <property name="maximum">
-         <number>10</number>
+         <number>20</number>
         </property>
         <property name="value">
-         <number>3</number>
+         <number>5</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
         </property>
        </widget>
       </item>

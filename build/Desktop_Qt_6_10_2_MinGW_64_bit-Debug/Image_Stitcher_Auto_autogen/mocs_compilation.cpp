@@ -7,5 +7,7 @@
 #include "EWIEGA46WW/moc_droparea_wiz.cpp"
 #include "EWIEGA46WW/moc_file_input_wiz.cpp"
 #include "EWIEGA46WW/moc_filetablewidget.cpp"
+#include "EWIEGA46WW/moc_least_squares_settings.cpp"
 #include "EWIEGA46WW/moc_mainwindow.cpp"
+#include "EWIEGA46WW/moc_merge_settings.cpp"
 #include "EWIEGA46WW/moc_opti_settings.cpp"

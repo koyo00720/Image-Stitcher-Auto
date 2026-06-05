@@ -41,8 +41,15 @@ opti_settings::opti_settings(QWidget *parent) : QDialog(parent), ui(new Ui::opti
     connect(ui->spinBox_7, QOverload<int>::of(&QSpinBox::valueChanged),
             ui->horizontalSlider_7, &QSlider::setValue);
 
+    ui->spinBox_9->setMinimum(0);
+    ui->spinBox_9->setMaximum(100);
+    ui->spinBox_8->setMinimum(1);
+    ui->spinBox_8->setMaximum(100);
+
     connect(ui->checkBox, &QCheckBox::toggled,this, &opti_settings::lock1);
     connect(ui->checkBox_2, &QCheckBox::toggled,this, &opti_settings::lock2);
+    connect(ui->checkBox_3, &QCheckBox::toggled,this, &opti_settings::lock3);
+    lock3(ui->checkBox_3->isChecked());
 }
 
 opti_settings::~opti_settings()
@@ -66,7 +73,14 @@ void opti_settings::lock2(bool checked) {
     }
 }
 
-void opti_settings::setValues(int pa_num,int pa_radi,int pa_opti,int pa_itr,int all_radi,int all_opti,int all_itr,bool pa_TF,bool all_TF)
+void opti_settings::lock3(bool checked) {
+    ui->label_8->setEnabled(checked);
+    ui->spinBox_9->setEnabled(checked);
+    ui->label_9->setEnabled(checked);
+    ui->spinBox_8->setEnabled(checked);
+}
+
+void opti_settings::setValues(int pa_num,int pa_radi,int pa_opti,int pa_itr,int all_radi,int all_opti,int all_itr,bool pa_TF,bool all_TF,bool pa_auto_TF,int pa_increment,int pa_increment_count)
 {
     if (pa_num < ui->spinBox->minimum()) {
         ui->spinBox->setMinimum(pa_num);
@@ -133,12 +147,16 @@ void opti_settings::setValues(int pa_num,int pa_radi,int pa_opti,int pa_itr,int 
 
     ui->checkBox->setChecked(pa_TF);
     ui->checkBox_2->setChecked(all_TF);
+    ui->checkBox_3->setChecked(pa_auto_TF);
+    ui->spinBox_9->setValue(pa_increment);
+    ui->spinBox_8->setValue(pa_increment_count);
+    lock3(ui->checkBox_3->isChecked());
 }
 
 std::vector<int> opti_settings::getValues()
 {
     std::vector<int> r;
-    r.resize(7);
+    r.resize(9);
     r[0] = ui->spinBox->value();
     r[1] = ui->spinBox_4->value();
     r[2] = ui->spinBox_2->value();
@@ -146,14 +164,17 @@ std::vector<int> opti_settings::getValues()
     r[4] = ui->spinBox_5->value();
     r[5] = ui->spinBox_6->value();
     r[6] = ui->spinBox_7->value();
+    r[7] = ui->spinBox_9->value();
+    r[8] = ui->spinBox_8->value();
     return r;
 }
 
 std::vector<bool> opti_settings::getTFs()
 {
     std::vector<bool> r;
-    r.resize(2);
+    r.resize(3);
     r[0] = ui->checkBox->isChecked();
     r[1] = ui->checkBox_2->isChecked();
+    r[2] = ui->checkBox_3->isChecked();
     return r;
 }

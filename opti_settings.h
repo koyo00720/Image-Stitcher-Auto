@@ -15,13 +15,14 @@ class opti_settings : public QDialog
 public:
     explicit opti_settings(QWidget *parent = nullptr);
     ~opti_settings();
-    void setValues(int,int,int,int,int,int,int,bool,bool);
+    void setValues(int,int,int,int,int,int,int,bool,bool,bool,int,int);
     std::vector<int> getValues();
     std::vector<bool> getTFs();
 
 private slots:
     void lock1(bool);
     void lock2(bool);
+    void lock3(bool);
 
 private:
     Ui::opti_settings *ui;

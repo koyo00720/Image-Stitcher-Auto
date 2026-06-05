@@ -25,6 +25,8 @@ set(PROJECT_SOURCES
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
+        canvas_history_graph_widget.cpp
+        canvas_history_graph_widget.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -43,6 +45,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         splash.qrc
         trws.h trws.cpp
         opti_settings.ui opti_settings.h opti_settings.cpp
+        least_squares_settings.ui least_squares_settings.h least_squares_settings.cpp
+        merge_settings.ui merge_settings.h merge_settings.cpp
         detail_opti_dialog.h detail_opti_dialog.cpp detail_opti_dialog.ui
     )
 # Define target properties for Android with Qt 6 as:

@@ -41,18 +41,23 @@ public:
     QCheckBox *checkBox;
     QGroupBox *groupBox;
     QGridLayout *gridLayout_2;
-    QSpinBox *spinBox_2;
-    QSlider *horizontalSlider;
-    QLabel *label_3;
     QSpinBox *spinBox_3;
-    QLabel *label_2;
-    QLabel *label;
-    QSlider *horizontalSlider_3;
-    QSpinBox *spinBox;
-    QSlider *horizontalSlider_2;
-    QLabel *label_4;
-    QSlider *horizontalSlider_4;
+    QCheckBox *checkBox_3;
+    QLabel *label_3;
     QSpinBox *spinBox_4;
+    QLabel *label_2;
+    QSpinBox *spinBox_2;
+    QSpinBox *spinBox_9;
+    QSpinBox *spinBox;
+    QLabel *label_4;
+    QSpinBox *spinBox_8;
+    QLabel *label;
+    QLabel *label_8;
+    QLabel *label_9;
+    QSlider *horizontalSlider;
+    QSlider *horizontalSlider_4;
+    QSlider *horizontalSlider_2;
+    QSlider *horizontalSlider_3;
     QDialogButtonBox *buttonBox;
     QCheckBox *checkBox_2;
 
@@ -60,7 +65,7 @@ public:
     {
         if (opti_settings->objectName().isEmpty())
             opti_settings->setObjectName("opti_settings");
-        opti_settings->resize(520, 367);
+        opti_settings->resize(550, 398);
         gridLayout = new QGridLayout(opti_settings);
         gridLayout->setObjectName("gridLayout");
         groupBox_2 = new QGroupBox(opti_settings);
@@ -146,76 +151,98 @@ public:
         groupBox->setObjectName("groupBox");
         gridLayout_2 = new QGridLayout(groupBox);
         gridLayout_2->setObjectName("gridLayout_2");
-        spinBox_2 = new QSpinBox(groupBox);
-        spinBox_2->setObjectName("spinBox_2");
-        spinBox_2->setMinimum(20);
-        spinBox_2->setMaximum(100000);
-        spinBox_2->setValue(5000);
-
-        gridLayout_2->addWidget(spinBox_2, 2, 2, 1, 1);
-
-        horizontalSlider = new QSlider(groupBox);
-        horizontalSlider->setObjectName("horizontalSlider");
-        horizontalSlider->setMinimum(4);
-        horizontalSlider->setMaximum(10);
-        horizontalSlider->setValue(6);
-        horizontalSlider->setOrientation(Qt::Orientation::Horizontal);
-
-        gridLayout_2->addWidget(horizontalSlider, 0, 1, 1, 1);
-
-        label_3 = new QLabel(groupBox);
-        label_3->setObjectName("label_3");
-
-        gridLayout_2->addWidget(label_3, 3, 0, 1, 1);
-
         spinBox_3 = new QSpinBox(groupBox);
         spinBox_3->setObjectName("spinBox_3");
         spinBox_3->setMinimum(1);
         spinBox_3->setMaximum(20);
         spinBox_3->setValue(5);
 
-        gridLayout_2->addWidget(spinBox_3, 3, 2, 1, 1);
+        gridLayout_2->addWidget(spinBox_3, 4, 5, 1, 1);
+
+        checkBox_3 = new QCheckBox(groupBox);
+        checkBox_3->setObjectName("checkBox_3");
+
+        gridLayout_2->addWidget(checkBox_3, 1, 0, 1, 2);
+
+        label_3 = new QLabel(groupBox);
+        label_3->setObjectName("label_3");
+
+        gridLayout_2->addWidget(label_3, 4, 0, 1, 1);
+
+        spinBox_4 = new QSpinBox(groupBox);
+        spinBox_4->setObjectName("spinBox_4");
+        spinBox_4->setMinimum(1);
+        spinBox_4->setMaximum(10);
+        spinBox_4->setValue(3);
+
+        gridLayout_2->addWidget(spinBox_4, 2, 5, 1, 1);
 
         label_2 = new QLabel(groupBox);
         label_2->setObjectName("label_2");
 
-        gridLayout_2->addWidget(label_2, 2, 0, 1, 1);
+        gridLayout_2->addWidget(label_2, 3, 0, 1, 1);
+
+        spinBox_2 = new QSpinBox(groupBox);
+        spinBox_2->setObjectName("spinBox_2");
+        spinBox_2->setMinimum(20);
+        spinBox_2->setMaximum(100000);
+        spinBox_2->setValue(5000);
+
+        gridLayout_2->addWidget(spinBox_2, 3, 5, 1, 1);
+
+        spinBox_9 = new QSpinBox(groupBox);
+        spinBox_9->setObjectName("spinBox_9");
+        spinBox_9->setMinimum(0);
+        spinBox_9->setMaximum(100);
+
+        gridLayout_2->addWidget(spinBox_9, 1, 3, 1, 1);
+
+        spinBox = new QSpinBox(groupBox);
+        spinBox->setObjectName("spinBox");
+        spinBox->setMinimum(4);
+        spinBox->setMaximum(100);
+        spinBox->setValue(4);
+
+        gridLayout_2->addWidget(spinBox, 0, 5, 1, 1);
+
+        label_4 = new QLabel(groupBox);
+        label_4->setObjectName("label_4");
+
+        gridLayout_2->addWidget(label_4, 2, 0, 1, 1);
+
+        spinBox_8 = new QSpinBox(groupBox);
+        spinBox_8->setObjectName("spinBox_8");
+        spinBox_8->setMinimum(1);
+        spinBox_8->setMaximum(100);
+        spinBox_8->setValue(1);
+
+        gridLayout_2->addWidget(spinBox_8, 1, 5, 1, 1);
 
         label = new QLabel(groupBox);
         label->setObjectName("label");
 
         gridLayout_2->addWidget(label, 0, 0, 1, 1);
 
-        horizontalSlider_3 = new QSlider(groupBox);
-        horizontalSlider_3->setObjectName("horizontalSlider_3");
-        horizontalSlider_3->setMinimum(1);
-        horizontalSlider_3->setMaximum(20);
-        horizontalSlider_3->setValue(5);
-        horizontalSlider_3->setOrientation(Qt::Orientation::Horizontal);
+        label_8 = new QLabel(groupBox);
+        label_8->setObjectName("label_8");
+        label_8->setAlignment(Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter);
 
-        gridLayout_2->addWidget(horizontalSlider_3, 3, 1, 1, 1);
+        gridLayout_2->addWidget(label_8, 1, 2, 1, 1);
 
-        spinBox = new QSpinBox(groupBox);
-        spinBox->setObjectName("spinBox");
-        spinBox->setMinimum(4);
-        spinBox->setMaximum(10);
-        spinBox->setValue(6);
+        label_9 = new QLabel(groupBox);
+        label_9->setObjectName("label_9");
+        label_9->setAlignment(Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter);
 
-        gridLayout_2->addWidget(spinBox, 0, 2, 1, 1);
+        gridLayout_2->addWidget(label_9, 1, 4, 1, 1);
 
-        horizontalSlider_2 = new QSlider(groupBox);
-        horizontalSlider_2->setObjectName("horizontalSlider_2");
-        horizontalSlider_2->setMinimum(20);
-        horizontalSlider_2->setMaximum(100000);
-        horizontalSlider_2->setValue(5000);
-        horizontalSlider_2->setOrientation(Qt::Orientation::Horizontal);
+        horizontalSlider = new QSlider(groupBox);
+        horizontalSlider->setObjectName("horizontalSlider");
+        horizontalSlider->setMinimum(4);
+        horizontalSlider->setMaximum(100);
+        horizontalSlider->setValue(4);
+        horizontalSlider->setOrientation(Qt::Orientation::Horizontal);
 
-        gridLayout_2->addWidget(horizontalSlider_2, 2, 1, 1, 1);
-
-        label_4 = new QLabel(groupBox);
-        label_4->setObjectName("label_4");
-
-        gridLayout_2->addWidget(label_4, 1, 0, 1, 1);
+        gridLayout_2->addWidget(horizontalSlider, 0, 1, 1, 4);
 
         horizontalSlider_4 = new QSlider(groupBox);
         horizontalSlider_4->setObjectName("horizontalSlider_4");
@@ -224,15 +251,25 @@ public:
         horizontalSlider_4->setValue(3);
         horizontalSlider_4->setOrientation(Qt::Orientation::Horizontal);
 
-        gridLayout_2->addWidget(horizontalSlider_4, 1, 1, 1, 1);
+        gridLayout_2->addWidget(horizontalSlider_4, 2, 1, 1, 4);
 
-        spinBox_4 = new QSpinBox(groupBox);
-        spinBox_4->setObjectName("spinBox_4");
-        spinBox_4->setMinimum(1);
-        spinBox_4->setMaximum(10);
-        spinBox_4->setValue(3);
+        horizontalSlider_2 = new QSlider(groupBox);
+        horizontalSlider_2->setObjectName("horizontalSlider_2");
+        horizontalSlider_2->setMinimum(20);
+        horizontalSlider_2->setMaximum(100000);
+        horizontalSlider_2->setValue(5000);
+        horizontalSlider_2->setOrientation(Qt::Orientation::Horizontal);
 
-        gridLayout_2->addWidget(spinBox_4, 1, 2, 1, 1);
+        gridLayout_2->addWidget(horizontalSlider_2, 3, 1, 1, 4);
+
+        horizontalSlider_3 = new QSlider(groupBox);
+        horizontalSlider_3->setObjectName("horizontalSlider_3");
+        horizontalSlider_3->setMinimum(1);
+        horizontalSlider_3->setMaximum(20);
+        horizontalSlider_3->setValue(5);
+        horizontalSlider_3->setOrientation(Qt::Orientation::Horizontal);
+
+        gridLayout_2->addWidget(horizontalSlider_3, 4, 1, 1, 4);
 
 
         gridLayout->addWidget(groupBox, 1, 0, 1, 1);
@@ -268,11 +305,14 @@ public:
         label_7->setText(QCoreApplication::translate("opti_settings", "\346\234\200\345\244\247\343\203\253\343\203\274\343\203\227\345\233\236\346\225\260", nullptr));
         checkBox->setText(QCoreApplication::translate("opti_settings", "\345\261\200\346\211\200\343\203\253\343\203\274\343\203\227\346\234\200\351\201\251\345\214\226", nullptr));
         groupBox->setTitle(QString());
+        checkBox_3->setText(QCoreApplication::translate("opti_settings", "\345\217\216\346\235\237\346\231\202\343\201\253\347\224\273\345\203\217\346\236\232\346\225\260\343\201\256\350\207\252\345\213\225\350\277\275\345\212\240\343\201\253\343\202\210\343\202\213\350\277\275\345\212\240\345\256\237\350\241\214\343\202\222\350\241\214\343\201\206", nullptr));
         label_3->setText(QCoreApplication::translate("opti_settings", "\346\234\200\345\244\247\343\203\253\343\203\274\343\203\227\345\233\236\346\225\260", nullptr));
-        label_2->setText(QCoreApplication::translate("opti_settings", "\346\234\200\345\244\247\350\250\210\347\256\227\345\233\236\346\225\260", nullptr));
-        label->setText(QCoreApplication::translate("opti_settings", "\350\250\210\347\256\227\345\257\276\350\261\241\343\201\256\347\224\273\345\203\217\346\236\232\346\225\260", nullptr));
-        label_4->setText(QCoreApplication::translate("opti_settings", "\346\216\242\347\264\242\347\257\204\345\233\262\345\215\212\345\276\204", nullptr));
         spinBox_4->setSuffix(QCoreApplication::translate("opti_settings", " pix", nullptr));
+        label_2->setText(QCoreApplication::translate("opti_settings", "\346\234\200\345\244\247\350\250\210\347\256\227\345\233\236\346\225\260", nullptr));
+        label_4->setText(QCoreApplication::translate("opti_settings", "\346\216\242\347\264\242\347\257\204\345\233\262\345\215\212\345\276\204", nullptr));
+        label->setText(QCoreApplication::translate("opti_settings", "\350\250\210\347\256\227\345\257\276\350\261\241\343\201\256\347\224\273\345\203\217\346\236\232\346\225\260", nullptr));
+        label_8->setText(QCoreApplication::translate("opti_settings", "\343\202\244\343\203\263\343\202\257\343\203\252\343\203\241\343\203\263\343\203\210", nullptr));
+        label_9->setText(QCoreApplication::translate("opti_settings", "\345\233\236\346\225\260", nullptr));
         checkBox_2->setText(QCoreApplication::translate("opti_settings", "\345\205\250\344\275\223\346\234\200\351\201\251\345\214\226", nullptr));
     } // retranslateUi
 

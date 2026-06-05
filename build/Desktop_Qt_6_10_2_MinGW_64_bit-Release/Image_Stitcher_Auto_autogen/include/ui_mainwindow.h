@@ -36,29 +36,29 @@ public:
     QGridLayout *gridLayout_2;
     maincampus *graphicsView;
     QGridLayout *GridLayout;
-    QGroupBox *groupBox;
-    QGridLayout *gridLayout_3;
-    QRadioButton *radioButton_6;
-    QRadioButton *radioButton_5;
-    QGroupBox *groupBox_2;
-    QGridLayout *gridLayout_5;
-    QRadioButton *radioButton_3;
-    QRadioButton *radioButton_4;
+    QPushButton *pushButton_4;
+    QGroupBox *groupBox_3;
+    QGridLayout *gridLayout;
+    CornerDirectionSelector *cornerSelector;
+    QCheckBox *checkBox;
     QGroupBox *groupBox_6;
     QGridLayout *gridLayout_7;
+    QPushButton *pushButton_6;
+    QCheckBox *checkBox_2;
     QLabel *label_5;
-    QLabel *label_6;
-    QPushButton *pushButton;
-    QPushButton *pushButton_2;
-    QLabel *label_4;
     QPushButton *pushButton_Calc1;
     QPushButton *pushButton_3;
     QPushButton *pushButton_5;
     QLabel *label_12;
-    QPushButton *pushButton_6;
-    QGroupBox *groupBox_3;
-    QGridLayout *gridLayout;
-    CornerDirectionSelector *cornerSelector;
+    QPushButton *pushButton_8;
+    QPushButton *pushButton;
+    QPushButton *pushButton_9;
+    QLabel *label_4;
+    QPushButton *pushButton_10;
+    QPushButton *pushButton_2;
+    QLabel *label_6;
+    QPushButton *pushButton_11;
+    QPushButton *pushButton_7;
     QGroupBox *groupBox_5;
     QGridLayout *gridLayout_6;
     QSlider *sliderOpacity1;
@@ -68,7 +68,6 @@ public:
     QLabel *label_2;
     QLabel *label_8;
     QLabel *label_9;
-    QPushButton *pushButton_4;
     QPushButton *pushButton_1;
     QLabel *label_7;
     QGroupBox *groupBox_4;
@@ -82,7 +81,10 @@ public:
     QSpinBox *spinBox_3;
     QSlider *horizontalSlider_3;
     QLabel *label_3;
-    QCheckBox *checkBox;
+    QGroupBox *groupBox_2;
+    QGridLayout *gridLayout_5;
+    QRadioButton *radioButton_3;
+    QRadioButton *radioButton_4;
     QMenuBar *menubar;
     QStatusBar *statusbar;
 
@@ -90,7 +92,7 @@ public:
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(1200, 820);
+        MainWindow->resize(1200, 860);
         QSizePolicy sizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Expanding);
         sizePolicy.setHorizontalStretch(0);
         sizePolicy.setVerticalStretch(0);
@@ -108,101 +110,10 @@ public:
 
         GridLayout = new QGridLayout();
         GridLayout->setObjectName("GridLayout");
-        groupBox = new QGroupBox(centralwidget);
-        groupBox->setObjectName("groupBox");
-        groupBox->setStyleSheet(QString::fromUtf8(""));
-        gridLayout_3 = new QGridLayout(groupBox);
-        gridLayout_3->setObjectName("gridLayout_3");
-        radioButton_6 = new QRadioButton(groupBox);
-        radioButton_6->setObjectName("radioButton_6");
+        pushButton_4 = new QPushButton(centralwidget);
+        pushButton_4->setObjectName("pushButton_4");
 
-        gridLayout_3->addWidget(radioButton_6, 0, 1, 1, 1);
-
-        radioButton_5 = new QRadioButton(groupBox);
-        radioButton_5->setObjectName("radioButton_5");
-
-        gridLayout_3->addWidget(radioButton_5, 0, 0, 1, 1);
-
-
-        GridLayout->addWidget(groupBox, 4, 0, 1, 3);
-
-        groupBox_2 = new QGroupBox(centralwidget);
-        groupBox_2->setObjectName("groupBox_2");
-        gridLayout_5 = new QGridLayout(groupBox_2);
-        gridLayout_5->setObjectName("gridLayout_5");
-        radioButton_3 = new QRadioButton(groupBox_2);
-        radioButton_3->setObjectName("radioButton_3");
-
-        gridLayout_5->addWidget(radioButton_3, 1, 0, 1, 1);
-
-        radioButton_4 = new QRadioButton(groupBox_2);
-        radioButton_4->setObjectName("radioButton_4");
-
-        gridLayout_5->addWidget(radioButton_4, 1, 1, 1, 1);
-
-
-        GridLayout->addWidget(groupBox_2, 7, 0, 1, 3);
-
-        groupBox_6 = new QGroupBox(centralwidget);
-        groupBox_6->setObjectName("groupBox_6");
-        gridLayout_7 = new QGridLayout(groupBox_6);
-        gridLayout_7->setObjectName("gridLayout_7");
-        label_5 = new QLabel(groupBox_6);
-        label_5->setObjectName("label_5");
-        label_5->setAlignment(Qt::AlignmentFlag::AlignCenter);
-
-        gridLayout_7->addWidget(label_5, 1, 1, 1, 1);
-
-        label_6 = new QLabel(groupBox_6);
-        label_6->setObjectName("label_6");
-        label_6->setAlignment(Qt::AlignmentFlag::AlignCenter);
-
-        gridLayout_7->addWidget(label_6, 6, 2, 1, 1);
-
-        pushButton = new QPushButton(groupBox_6);
-        pushButton->setObjectName("pushButton");
-
-        gridLayout_7->addWidget(pushButton, 1, 2, 1, 1);
-
-        pushButton_2 = new QPushButton(groupBox_6);
-        pushButton_2->setObjectName("pushButton_2");
-
-        gridLayout_7->addWidget(pushButton_2, 6, 0, 1, 2);
-
-        label_4 = new QLabel(groupBox_6);
-        label_4->setObjectName("label_4");
-        label_4->setAlignment(Qt::AlignmentFlag::AlignCenter);
-
-        gridLayout_7->addWidget(label_4, 1, 0, 1, 1);
-
-        pushButton_Calc1 = new QPushButton(groupBox_6);
-        pushButton_Calc1->setObjectName("pushButton_Calc1");
-
-        gridLayout_7->addWidget(pushButton_Calc1, 0, 0, 1, 3);
-
-        pushButton_3 = new QPushButton(groupBox_6);
-        pushButton_3->setObjectName("pushButton_3");
-
-        gridLayout_7->addWidget(pushButton_3, 2, 0, 1, 3);
-
-        pushButton_5 = new QPushButton(groupBox_6);
-        pushButton_5->setObjectName("pushButton_5");
-
-        gridLayout_7->addWidget(pushButton_5, 3, 2, 1, 1);
-
-        label_12 = new QLabel(groupBox_6);
-        label_12->setObjectName("label_12");
-        label_12->setAlignment(Qt::AlignmentFlag::AlignCenter);
-
-        gridLayout_7->addWidget(label_12, 3, 1, 1, 1);
-
-        pushButton_6 = new QPushButton(groupBox_6);
-        pushButton_6->setObjectName("pushButton_6");
-
-        gridLayout_7->addWidget(pushButton_6, 3, 0, 1, 1);
-
-
-        GridLayout->addWidget(groupBox_6, 13, 0, 1, 3);
+        GridLayout->addWidget(pushButton_4, 13, 0, 1, 3);
 
         groupBox_3 = new QGroupBox(centralwidget);
         groupBox_3->setObjectName("groupBox_3");
@@ -214,7 +125,103 @@ public:
         gridLayout->addWidget(cornerSelector, 0, 0, 1, 1);
 
 
-        GridLayout->addWidget(groupBox_3, 6, 0, 1, 3);
+        GridLayout->addWidget(groupBox_3, 5, 0, 1, 3);
+
+        checkBox = new QCheckBox(centralwidget);
+        checkBox->setObjectName("checkBox");
+        checkBox->setLayoutDirection(Qt::LayoutDirection::LeftToRight);
+
+        GridLayout->addWidget(checkBox, 3, 0, 1, 2);
+
+        groupBox_6 = new QGroupBox(centralwidget);
+        groupBox_6->setObjectName("groupBox_6");
+        gridLayout_7 = new QGridLayout(groupBox_6);
+        gridLayout_7->setObjectName("gridLayout_7");
+        pushButton_6 = new QPushButton(groupBox_6);
+        pushButton_6->setObjectName("pushButton_6");
+
+        gridLayout_7->addWidget(pushButton_6, 5, 0, 1, 1);
+
+        checkBox_2 = new QCheckBox(groupBox_6);
+        checkBox_2->setObjectName("checkBox_2");
+
+        gridLayout_7->addWidget(checkBox_2, 1, 0, 1, 1);
+
+        label_5 = new QLabel(groupBox_6);
+        label_5->setObjectName("label_5");
+        label_5->setAlignment(Qt::AlignmentFlag::AlignCenter);
+
+        gridLayout_7->addWidget(label_5, 1, 1, 1, 1);
+
+        pushButton_Calc1 = new QPushButton(groupBox_6);
+        pushButton_Calc1->setObjectName("pushButton_Calc1");
+
+        gridLayout_7->addWidget(pushButton_Calc1, 0, 0, 1, 3);
+
+        pushButton_3 = new QPushButton(groupBox_6);
+        pushButton_3->setObjectName("pushButton_3");
+
+        gridLayout_7->addWidget(pushButton_3, 4, 0, 1, 3);
+
+        pushButton_5 = new QPushButton(groupBox_6);
+        pushButton_5->setObjectName("pushButton_5");
+
+        gridLayout_7->addWidget(pushButton_5, 5, 2, 1, 1);
+
+        label_12 = new QLabel(groupBox_6);
+        label_12->setObjectName("label_12");
+        label_12->setAlignment(Qt::AlignmentFlag::AlignCenter);
+
+        gridLayout_7->addWidget(label_12, 5, 1, 1, 1);
+
+        pushButton_8 = new QPushButton(groupBox_6);
+        pushButton_8->setObjectName("pushButton_8");
+
+        gridLayout_7->addWidget(pushButton_8, 2, 0, 1, 3);
+
+        pushButton = new QPushButton(groupBox_6);
+        pushButton->setObjectName("pushButton");
+
+        gridLayout_7->addWidget(pushButton, 1, 2, 1, 1);
+
+        pushButton_9 = new QPushButton(groupBox_6);
+        pushButton_9->setObjectName("pushButton_9");
+
+        gridLayout_7->addWidget(pushButton_9, 3, 2, 1, 1);
+
+        label_4 = new QLabel(groupBox_6);
+        label_4->setObjectName("label_4");
+
+        gridLayout_7->addWidget(label_4, 3, 1, 1, 1);
+
+        pushButton_10 = new QPushButton(groupBox_6);
+        pushButton_10->setObjectName("pushButton_10");
+
+        gridLayout_7->addWidget(pushButton_10, 3, 0, 1, 1);
+
+        pushButton_2 = new QPushButton(groupBox_6);
+        pushButton_2->setObjectName("pushButton_2");
+
+        gridLayout_7->addWidget(pushButton_2, 8, 0, 1, 1);
+
+        label_6 = new QLabel(groupBox_6);
+        label_6->setObjectName("label_6");
+        label_6->setAlignment(Qt::AlignmentFlag::AlignCenter);
+
+        gridLayout_7->addWidget(label_6, 8, 2, 1, 1);
+
+        pushButton_11 = new QPushButton(groupBox_6);
+        pushButton_11->setObjectName("pushButton_11");
+
+        gridLayout_7->addWidget(pushButton_11, 8, 1, 1, 1);
+
+
+        GridLayout->addWidget(groupBox_6, 12, 0, 1, 3);
+
+        pushButton_7 = new QPushButton(centralwidget);
+        pushButton_7->setObjectName("pushButton_7");
+
+        GridLayout->addWidget(pushButton_7, 3, 2, 1, 1);
 
         groupBox_5 = new QGroupBox(centralwidget);
         groupBox_5->setObjectName("groupBox_5");
@@ -267,12 +274,7 @@ public:
         gridLayout_6->addWidget(label_9, 2, 2, 1, 2);
 
 
-        GridLayout->addWidget(groupBox_5, 11, 0, 1, 3);
-
-        pushButton_4 = new QPushButton(centralwidget);
-        pushButton_4->setObjectName("pushButton_4");
-
-        GridLayout->addWidget(pushButton_4, 14, 0, 1, 3);
+        GridLayout->addWidget(groupBox_5, 10, 0, 1, 3);
 
         pushButton_1 = new QPushButton(centralwidget);
         pushButton_1->setObjectName("pushButton_1");
@@ -287,7 +289,7 @@ public:
         sizePolicy2.setHeightForWidth(label_7->sizePolicy().hasHeightForWidth());
         label_7->setSizePolicy(sizePolicy2);
 
-        GridLayout->addWidget(label_7, 15, 2, 1, 1);
+        GridLayout->addWidget(label_7, 14, 2, 1, 1);
 
         groupBox_4 = new QGroupBox(centralwidget);
         groupBox_4->setObjectName("groupBox_4");
@@ -360,13 +362,24 @@ public:
         gridLayout_4->addWidget(label_3, 2, 0, 1, 1);
 
 
-        GridLayout->addWidget(groupBox_4, 5, 0, 1, 3);
+        GridLayout->addWidget(groupBox_4, 4, 0, 1, 3);
 
-        checkBox = new QCheckBox(centralwidget);
-        checkBox->setObjectName("checkBox");
-        checkBox->setLayoutDirection(Qt::LayoutDirection::LeftToRight);
+        groupBox_2 = new QGroupBox(centralwidget);
+        groupBox_2->setObjectName("groupBox_2");
+        gridLayout_5 = new QGridLayout(groupBox_2);
+        gridLayout_5->setObjectName("gridLayout_5");
+        radioButton_3 = new QRadioButton(groupBox_2);
+        radioButton_3->setObjectName("radioButton_3");
 
-        GridLayout->addWidget(checkBox, 3, 0, 1, 3);
+        gridLayout_5->addWidget(radioButton_3, 1, 0, 1, 1);
+
+        radioButton_4 = new QRadioButton(groupBox_2);
+        radioButton_4->setObjectName("radioButton_4");
+
+        gridLayout_5->addWidget(radioButton_4, 1, 1, 1, 1);
+
+
+        GridLayout->addWidget(groupBox_2, 6, 0, 1, 3);
 
 
         gridLayout_2->addLayout(GridLayout, 0, 0, 1, 1);
@@ -388,30 +401,31 @@ public:
     void retranslateUi(QMainWindow *MainWindow)
     {
         MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Image Stitcher Auto", nullptr));
-        groupBox->setTitle(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\343\201\256\351\205\215\345\210\227\346\226\271\346\263\225", nullptr));
-        radioButton_6->setText(QCoreApplication::translate("MainWindow", "\350\207\252\345\213\225\357\274\210\346\234\252\357\274\211", nullptr));
-        radioButton_5->setText(QCoreApplication::translate("MainWindow", "\346\211\213\345\213\225", nullptr));
-        groupBox_2->setTitle(QCoreApplication::translate("MainWindow", "\346\212\230\343\202\212\350\277\224\343\201\227\346\226\271\346\263\225", nullptr));
-        radioButton_3->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\223 \343\202\270\343\202\260\343\202\266\343\202\260", nullptr));
-        radioButton_4->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\221 \344\270\200\346\226\271\345\220\221\357\274\210\346\234\252\357\274\211", nullptr));
+        pushButton_4->setText(QCoreApplication::translate("MainWindow", "PNG \343\202\250\343\202\257\343\202\271\343\203\235\343\203\274\343\203\210", nullptr));
+        groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "\343\203\254\343\202\244\343\202\242\343\202\246\343\203\210", nullptr));
+        checkBox->setText(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\343\201\256\351\205\215\347\275\256\343\202\222\343\203\255\343\203\203\343\202\257", nullptr));
         groupBox_6->setTitle(QCoreApplication::translate("MainWindow", "\350\250\210\347\256\227", nullptr));
+        pushButton_6->setText(QCoreApplication::translate("MainWindow", "\346\234\200\351\201\251\345\214\226\350\250\255\345\256\232", nullptr));
+        checkBox_2->setText(QCoreApplication::translate("MainWindow", "\343\202\255\343\203\243\343\203\263\343\203\221\343\202\271\343\202\222\343\202\275\343\203\274\343\202\271", nullptr));
         label_5->setText(QString());
-        label_6->setText(QString());
-        pushButton->setText(QCoreApplication::translate("MainWindow", "\350\251\263\347\264\260", nullptr));
-        pushButton_2->setText(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\343\202\222\344\275\234\346\210\220", nullptr));
-        label_4->setText(QCoreApplication::translate("MainWindow", "\347\265\220\345\220\210\345\223\201\350\263\252", nullptr));
         pushButton_Calc1->setText(QCoreApplication::translate("MainWindow", "\344\275\215\347\275\256\345\220\210\343\202\217\343\201\233\357\274\210\344\275\215\347\233\270\347\233\270\351\226\242\346\263\225\357\274\211", nullptr));
         pushButton_3->setText(QCoreApplication::translate("MainWindow", "\344\275\215\347\275\256\345\220\210\343\202\217\343\201\233\346\234\200\351\201\251\345\214\226\357\274\210TRW-S-PAMI\357\274\211", nullptr));
         pushButton_5->setText(QCoreApplication::translate("MainWindow", "\350\251\263\347\264\260", nullptr));
         label_12->setText(QString());
-        pushButton_6->setText(QCoreApplication::translate("MainWindow", "\346\234\200\351\201\251\345\214\226\350\250\255\345\256\232", nullptr));
-        groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "\343\203\254\343\202\244\343\202\242\343\202\246\343\203\210", nullptr));
+        pushButton_8->setText(QCoreApplication::translate("MainWindow", "\344\275\215\347\275\256\345\220\210\343\202\217\343\201\233\346\234\200\351\201\251\345\214\226\357\274\210\346\234\200\345\260\217\344\272\214\344\271\227\346\263\225\357\274\211", nullptr));
+        pushButton->setText(QCoreApplication::translate("MainWindow", "\350\251\263\347\264\260", nullptr));
+        pushButton_9->setText(QCoreApplication::translate("MainWindow", "\350\251\263\347\264\260", nullptr));
+        label_4->setText(QString());
+        pushButton_10->setText(QCoreApplication::translate("MainWindow", "\346\234\200\351\201\251\345\214\226\350\250\255\345\256\232", nullptr));
+        pushButton_2->setText(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\343\202\222\344\275\234\346\210\220", nullptr));
+        label_6->setText(QString());
+        pushButton_11->setText(QCoreApplication::translate("MainWindow", "\350\250\255\345\256\232", nullptr));
+        pushButton_7->setText(QCoreApplication::translate("MainWindow", "\345\244\211\346\233\264\345\261\245\346\255\264", nullptr));
         groupBox_5->setTitle(QCoreApplication::translate("MainWindow", "\343\202\255\343\203\243\343\203\263\343\203\221\343\202\271", nullptr));
         label->setText(QCoreApplication::translate("MainWindow", "\350\203\214\346\231\257\350\211\262", nullptr));
         label_2->setText(QCoreApplication::translate("MainWindow", "\351\201\270\346\212\236\347\224\273\345\203\217\343\201\256\351\200\217\346\230\216\345\272\246", nullptr));
         label_8->setText(QCoreApplication::translate("MainWindow", "\351\201\270\346\212\236\344\270\255\343\201\256\347\224\273\345\203\217\347\225\252\345\217\267", nullptr));
         label_9->setText(QString());
-        pushButton_4->setText(QCoreApplication::translate("MainWindow", "PNG \343\202\250\343\202\257\343\202\271\343\203\235\343\203\274\343\203\210", nullptr));
         pushButton_1->setText(QCoreApplication::translate("MainWindow", "\345\205\245\345\212\233\347\224\273\345\203\217", nullptr));
         label_7->setText(QString());
         groupBox_4->setTitle(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\345\220\214\345\243\253\343\201\256\351\207\215\343\201\252\343\202\212\347\233\256\345\256\211", nullptr));
@@ -422,7 +436,9 @@ public:
         spinBox->setPrefix(QCoreApplication::translate("MainWindow", "\302\261 ", nullptr));
         spinBox_3->setSuffix(QCoreApplication::translate("MainWindow", " %", nullptr));
         label_3->setText(QCoreApplication::translate("MainWindow", "\346\216\242\347\264\242\347\257\204\345\233\262", nullptr));
-        checkBox->setText(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\343\201\256\351\205\215\347\275\256\343\202\222\343\203\255\343\203\203\343\202\257", nullptr));
+        groupBox_2->setTitle(QCoreApplication::translate("MainWindow", "\346\212\230\343\202\212\350\277\224\343\201\227\346\226\271\346\263\225", nullptr));
+        radioButton_3->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\223 \343\202\270\343\202\260\343\202\266\343\202\260", nullptr));
+        radioButton_4->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\221 \344\270\200\346\226\271\345\220\221\357\274\210\346\234\252\357\274\211", nullptr));
     } // retranslateUi
 
 };
