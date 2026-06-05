@@ -143,7 +143,7 @@ public:
 
         checkBox = new QCheckBox(opti_settings);
         checkBox->setObjectName("checkBox");
-        checkBox->setChecked(true);
+        checkBox->setChecked(false);
 
         gridLayout->addWidget(checkBox, 0, 0, 1, 1);
 

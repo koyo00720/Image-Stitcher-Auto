@@ -49,6 +49,8 @@ opti_settings::opti_settings(QWidget *parent) : QDialog(parent), ui(new Ui::opti
     connect(ui->checkBox, &QCheckBox::toggled,this, &opti_settings::lock1);
     connect(ui->checkBox_2, &QCheckBox::toggled,this, &opti_settings::lock2);
     connect(ui->checkBox_3, &QCheckBox::toggled,this, &opti_settings::lock3);
+    lock1(ui->checkBox->isChecked());
+    lock2(ui->checkBox_2->isChecked());
     lock3(ui->checkBox_3->isChecked());
 }
 
@@ -150,6 +152,8 @@ void opti_settings::setValues(int pa_num,int pa_radi,int pa_opti,int pa_itr,int 
     ui->checkBox_3->setChecked(pa_auto_TF);
     ui->spinBox_9->setValue(pa_increment);
     ui->spinBox_8->setValue(pa_increment_count);
+    lock1(ui->checkBox->isChecked());
+    lock2(ui->checkBox_2->isChecked());
     lock3(ui->checkBox_3->isChecked());
 }
 

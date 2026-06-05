@@ -392,7 +392,7 @@ private:
     //int edge_th = 100;
 
     // 部分最適化するかどうか
-    bool pa_TF = true;
+    bool pa_TF = false;
 
     // 部分最適化計算の画像枚数
     int pa_num = 6;
@@ -415,8 +415,8 @@ private:
     // 部分最適化計算の最大反復回数
     int pa_itr = 4;
 
-    // 部分最適化するかどうか
-    bool all_TF = false;
+    // 全体最適化するかどうか
+    bool all_TF = true;
 
     // 全体最適化計算の最大移動距離
     int all_radi = 2; // 半径3pixを探索する。

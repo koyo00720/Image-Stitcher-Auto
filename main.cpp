@@ -84,9 +84,9 @@ int main(int argc, char *argv[])
 
     QCommandLineOption pa0Option(
         QStringList() << "part",
-        "局所最適化を行うか, [0-1], デフォルト: 1, 0: しない, 1: する",
+        "局所最適化を行うか, [0-1], デフォルト: 0, 0: しない, 1: する",
         "int");
-    pa0Option.setDefaultValue("1");
+    pa0Option.setDefaultValue("0");
     parser.addOption(pa0Option);
 
     QCommandLineOption pa1Option(
@@ -119,9 +119,9 @@ int main(int argc, char *argv[])
 
     QCommandLineOption al0Option(
         QStringList() << "all",
-        "全体最適化を行うか, [0-1], デフォルト: 0, 0: しない, 1: する",
+        "全体最適化を行うか, [0-1], デフォルト: 1, 0: しない, 1: する",
         "int");
-    al0Option.setDefaultValue("0");
+    al0Option.setDefaultValue("1");
     parser.addOption(al0Option);
 
     QCommandLineOption al2Option(
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
     ok = false;
     int pa0 = parser.value(pa0Option).toInt(&ok);
     if (!ok || pa0 < 0 || pa0 > 1) {
-        pa0 = 1;
+        pa0 = 0;
     }
     ok = false;
     int pa1 = parser.value(pa1Option).toInt(&ok);
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
     ok = false;
     int al0 = parser.value(al0Option).toInt(&ok);
     if (!ok || al0 < 0 || al0 > 1) {
-        al0 = 0;
+        al0 = 1;
     }
     ok = false;
     int al2 = parser.value(al2Option).toInt(&ok);
