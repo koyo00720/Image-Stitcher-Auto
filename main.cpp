@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     QCoreApplication::setApplicationName("Image Stitcher Auto");
-    QCoreApplication::setApplicationVersion("1.0.0");
+    QCoreApplication::setApplicationVersion("1.1.2");
 
     QCommandLineParser parser;
     parser.addHelpOption();
@@ -27,12 +27,13 @@ int main(int argc, char *argv[])
         "files");
     parser.addOption(inputOption);
 
+    /*
     QCommandLineOption autoOption("auto", "自動で画像の配列を計算（未実装）");
     parser.addOption(autoOption);
 
     QCommandLineOption manualOption("manual", "画像配列を指定");
     parser.addOption(manualOption);
-
+    */
     QCommandLineOption overxOption(
         QStringList() << "x" << "over_x",
         "横方向の画像同士重複率を設定, [1-100], デフォルト: 25",
@@ -174,7 +175,14 @@ int main(int argc, char *argv[])
     a.processEvents();
 
     MainWindow w;
-    w.resize(1300, 800);
+    w.resize(1200, 750);
+
+    w.setWindowTitle(
+        QString("%1  v%2").arg(
+            QCoreApplication::applicationName(),
+            QCoreApplication::applicationVersion()
+            )
+        );
 
     w.show();
 
@@ -195,12 +203,14 @@ int main(int argc, char *argv[])
 
     // 入力チェック
     int manu = 1;
+    /*
     if (parser.isSet(autoOption)) {
         manu = 0;
     }
     if (parser.isSet(manualOption)) {
         manu = 1;
     }
+    */
     bool ok = false;
     int o_x = parser.value(overxOption).toInt(&ok);
     if (!ok || o_x < 1 || o_x > 100) {

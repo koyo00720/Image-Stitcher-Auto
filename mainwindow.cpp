@@ -627,21 +627,24 @@ cv::Mat mergeByLegacyDistanceL2(const std::vector<cv::Mat>& imgs,
     }
 
     cv::Mat out = mergeEnsureBgra(imgs[0]);
-    int minX = 0;
-    int minY = 0;
+    if (out.empty()) {
+        return {};
+    }
 
-    for (int i = 0; i < static_cast<int>(imgs.size()) - 1; ++i) {
-        minX = std::min(poss[i].x(), minX);
-        minY = std::min(poss[i].y(), minY);
+    // out is cropped after each merge, so retain the scene coordinate of its pixel (0, 0).
+    QPoint outOrigin = poss[0];
 
-        cv::Mat next = mergeEnsureBgra(imgs[i + 1]);
-        if (next.empty() || out.empty()) {
+    for (int i = 1; i < static_cast<int>(imgs.size()); ++i) {
+        cv::Mat next = mergeEnsureBgra(imgs[i]);
+        if (next.empty()) {
             return {};
         }
 
-        cv::Point2d shiftV(poss[i + 1].x() - minX,
-                           poss[i + 1].y() - minY);
+        const cv::Point2d shiftV(poss[i].x() - outOrigin.x(),
+                                 poss[i].y() - outOrigin.y());
         out = make_canvas_bgra_feather_dt(next, out, shiftV, 80.0f);
+        outOrigin.setX(std::min(outOrigin.x(), poss[i].x()));
+        outOrigin.setY(std::min(outOrigin.y(), poss[i].y()));
     }
 
     return out;
@@ -984,6 +987,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // PNG exportボタン
     connect(ui->pushButton_4, &QPushButton::clicked, this, &MainWindow::png_export);
+    ui->pushButton_4->setEnabled(false);
 
     // 結合品質の詳細
     connect(ui->pushButton, &QPushButton::clicked, this, &MainWindow::show_detail);
@@ -1015,10 +1019,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // 画像を作成 finish通知
     connect(&image_make_Watcher, &QFutureWatcher<cv::Mat>::finished, this, [this]() {
-        output_img = image_make_Watcher.result();
-        ui->label_6->setText(output_img.empty() ? "不良" : "完了");
+        cv::Mat result = image_make_Watcher.result();
+        const bool sourceChanged =
+            !samePositions(imageMakeSourcePositions, readScenePositions());
+        if (sourceChanged) {
+            result.release();
+        }
+        output_img = result;
+        imageMakeSourcePositions.clear();
+        ui->label_6->setText(sourceChanged
+                                 ? "キャンパス更新・再作成が必要"
+                                 : (output_img.empty() ? "不良" : "完了"));
         ui->pushButton_2->setEnabled(true);
         ui->pushButton_11->setEnabled(true);
+        ui->pushButton_4->setEnabled(!output_img.empty());
         if (calc_finish_sig) {
             emit makeimageFinished();
         }
@@ -1373,6 +1387,7 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
     ui->pushButton_9->setEnabled(false);
     leastSquaresDetails.clear();
     applySceneMoveMode(!ui->checkBox->isChecked());
+    invalidateCreatedImage();
     recordCanvasHistory();
 };
 
@@ -1498,6 +1513,14 @@ void MainWindow::syncPossFromScene()
     pos_all = poss;
 }
 
+void MainWindow::invalidateCreatedImage()
+{
+    output_img.release();
+    ui->label_6->clear();
+    ui->pushButton_4->setEnabled(false);
+    ui->pushButton_4->setText("PNG エクスポート");
+}
+
 void MainWindow::arrangeSettingsChanged()
 {
     ui->checkBox_2->setChecked(false);
@@ -1521,6 +1544,7 @@ bool MainWindow::samePositions(const QVector<QPoint>& a, const QVector<QPoint>& 
 void MainWindow::applyCanvasPositions(const QVector<QPoint>& positions)
 {
     if (positions.size() != items.size()) return;
+    invalidateCreatedImage();
     restoringCanvasHistory = true;
     for (int i = 0; i < items.size(); ++i) {
         if (items[i]) {
@@ -1538,6 +1562,7 @@ void MainWindow::recordCanvasHistory(int markers)
     if (restoringCanvasHistory) return;
 
     if (items.isEmpty()) {
+        invalidateCreatedImage();
         canvasHistoryTree.clear();
         currentCanvasHistoryNode = -1;
         nextCanvasHistorySequence = 1;
@@ -1567,6 +1592,8 @@ void MainWindow::recordCanvasHistory(int markers)
             return;
         }
     }
+
+    invalidateCreatedImage();
 
     CanvasHistoryNode node;
     node.positions = positions;
@@ -2990,13 +3017,14 @@ void MainWindow::calc_finish_1()
     for(int i = 0; i < n; ++i) {
         items[i]->setPos(poss[i]);
     }
+    syncPossFromScene();
     recordCanvasHistory(CanvasHistoryMarkerPhase);
 
     ui->pushButton_Calc1->setEnabled(true);
     ui->pushButton->setEnabled(true);
     ui->checkBox->setEnabled(true);
     //ui->label_4->setEnabled(true);
-    ui->pushButton_4->setEnabled(true);
+    ui->pushButton_4->setEnabled(!output_img.empty());
     ui->pushButton_2->setEnabled(true);
     ui->checkBox_2->setEnabled(true);
     refreshCanvasHistoryDialog();
@@ -3421,13 +3449,14 @@ void MainWindow::calc_finish_2()
     for(int i = 0; i < n; ++i) {
         items[i]->setPos(poss[i]);
     }
+    syncPossFromScene();
     recordCanvasHistory(CanvasHistoryMarkerPhase);
 
     ui->pushButton_Calc1->setEnabled(true);
     ui->pushButton->setEnabled(true);
     ui->checkBox->setEnabled(true);
     //ui->label_4->setEnabled(true);
-    ui->pushButton_4->setEnabled(true);
+    ui->pushButton_4->setEnabled(!output_img.empty());
     ui->pushButton_2->setEnabled(true);
     calc1_finished_state = true;
     ui->pushButton_3->setEnabled(true);
@@ -4128,21 +4157,25 @@ void MainWindow::make_image()
         return;
     }
 
-    syncPossFromScene();
+    const QVector<QPoint> canvasPositions = readScenePositions();
 
-    if (imgs.size() != n || poss.size() != n) {
+    if (imgs.size() != n || canvasPositions.size() != n) {
         QMessageBox::warning(this, "画像作成", "先に位置合わせ計算を実行してください。");
         return;
     }
 
+    poss = canvasPositions;
+    pos_all = canvasPositions;
+    imageMakeSourcePositions = canvasPositions;
+    invalidateCreatedImage();
+
     ui->label_6->setText("作成中");
     ui->pushButton_2->setEnabled(false);
     ui->pushButton_11->setEnabled(false);
-    ui->pushButton_4->setText("PNG エクスポート");
 
     // 別スレッドに渡すために必要データをコピー
     auto imgs_copy = imgs;
-    auto poss_copy = poss;
+    const auto poss_copy = canvasPositions;
     const ImageMergeMode mergeMode = imageMergeSettings.mode;
 
     // ワーカースレッドで実行
@@ -5058,6 +5091,7 @@ void MainWindow::calc_least_squares_finish()
         for (int i = 0; i < poss.size() && i < items.size(); ++i) {
             items[i]->setPos(poss[i]);
         }
+        syncPossFromScene();
         recordCanvasHistory(CanvasHistoryMarkerOptimization);
         ui->label_4->setText(QString("最小SSIM:%1")
                                  .arg(out.minSsim, 0, 'f', 3));
@@ -5069,7 +5103,7 @@ void MainWindow::calc_least_squares_finish()
     }
 
     ui->pushButton_Calc1->setEnabled(true);
-    ui->pushButton_4->setEnabled(true);
+    ui->pushButton_4->setEnabled(!output_img.empty());
     ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
     ui->pushButton_8->setEnabled(calc1_finished_state && input_files.size() > 1);
     ui->pushButton_6->setEnabled(true);
@@ -5360,16 +5394,19 @@ void MainWindow::calc_TRWS_finish()
 
         bool ryoukou2 = false;
         if (out.detail[odn-1].minSSIM > 0.1) {
-            ui->label_12->setText("良好");
+            //ui->label_12->setText("良好");
             ryoukou2 = true;
-        } else {
-            ui->label_12->setText("一部不良");
-        }
+        }// else {
+        //    ui->label_12->setText("一部不良");
+        //}
+        ui->label_12->setText(QString("最小SSIM:%1")
+                                 .arg(out.detail[odn-1].minSSIM, 0, 'f', 3));
 
         // UI更新
         for (int i = 0; i < N; ++i) {
             items[i]->setPos(poss[i]);
         }
+        syncPossFromScene();
         recordCanvasHistory(CanvasHistoryMarkerOptimization);
 
         if (calc_finish_sig && ryoukou2) {
@@ -5381,7 +5418,7 @@ void MainWindow::calc_TRWS_finish()
 
     }
     ui->pushButton_Calc1->setEnabled(true);
-    ui->pushButton_4->setEnabled(true);
+    ui->pushButton_4->setEnabled(!output_img.empty());
     ui->pushButton_2->setEnabled(true);
     ui->pushButton_3->setEnabled(true);
     ui->pushButton_8->setEnabled(calc1_finished_state && input_files.size() > 1);

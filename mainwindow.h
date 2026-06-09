@@ -282,6 +282,7 @@ private:
     void applySceneMoveMode(bool enabled);
     QVector<QPoint> readScenePositions() const;
     void syncPossFromScene();
+    void invalidateCreatedImage();
     void arrangeSettingsChanged();
     int imageIndexAtScenePos(const QPointF& scenePos) const;
     void selectImageRange(int first, int last);
@@ -344,6 +345,7 @@ private:
 
     // 画像作成 watcher
     QFutureWatcher<cv::Mat> image_make_Watcher;
+    QVector<QPoint> imageMakeSourcePositions;
 
     // iFFTの集約後の良好・不良 (表示用)
     QVector<bool> checkTF;

@@ -37,9 +37,6 @@ public:
     maincampus *graphicsView;
     QGridLayout *GridLayout;
     QPushButton *pushButton_4;
-    QGroupBox *groupBox_3;
-    QGridLayout *gridLayout;
-    CornerDirectionSelector *cornerSelector;
     QCheckBox *checkBox;
     QGroupBox *groupBox_6;
     QGridLayout *gridLayout_7;
@@ -85,6 +82,9 @@ public:
     QGridLayout *gridLayout_5;
     QRadioButton *radioButton_3;
     QRadioButton *radioButton_4;
+    QGroupBox *groupBox_3;
+    QGridLayout *gridLayout;
+    CornerDirectionSelector *cornerSelector;
     QMenuBar *menubar;
     QStatusBar *statusbar;
 
@@ -114,18 +114,6 @@ public:
         pushButton_4->setObjectName("pushButton_4");
 
         GridLayout->addWidget(pushButton_4, 13, 0, 1, 3);
-
-        groupBox_3 = new QGroupBox(centralwidget);
-        groupBox_3->setObjectName("groupBox_3");
-        gridLayout = new QGridLayout(groupBox_3);
-        gridLayout->setObjectName("gridLayout");
-        cornerSelector = new CornerDirectionSelector(groupBox_3);
-        cornerSelector->setObjectName("cornerSelector");
-
-        gridLayout->addWidget(cornerSelector, 0, 0, 1, 1);
-
-
-        GridLayout->addWidget(groupBox_3, 5, 0, 1, 3);
 
         checkBox = new QCheckBox(centralwidget);
         checkBox->setObjectName("checkBox");
@@ -381,6 +369,18 @@ public:
 
         GridLayout->addWidget(groupBox_2, 6, 0, 1, 3);
 
+        groupBox_3 = new QGroupBox(centralwidget);
+        groupBox_3->setObjectName("groupBox_3");
+        gridLayout = new QGridLayout(groupBox_3);
+        gridLayout->setObjectName("gridLayout");
+        cornerSelector = new CornerDirectionSelector(groupBox_3);
+        cornerSelector->setObjectName("cornerSelector");
+
+        gridLayout->addWidget(cornerSelector, 0, 0, 1, 1);
+
+
+        GridLayout->addWidget(groupBox_3, 5, 0, 1, 3);
+
 
         gridLayout_2->addLayout(GridLayout, 0, 0, 1, 1);
 
@@ -402,7 +402,6 @@ public:
     {
         MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Image Stitcher Auto", nullptr));
         pushButton_4->setText(QCoreApplication::translate("MainWindow", "PNG \343\202\250\343\202\257\343\202\271\343\203\235\343\203\274\343\203\210", nullptr));
-        groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "\343\203\254\343\202\244\343\202\242\343\202\246\343\203\210", nullptr));
         checkBox->setText(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\343\201\256\351\205\215\347\275\256\343\202\222\343\203\255\343\203\203\343\202\257", nullptr));
         groupBox_6->setTitle(QCoreApplication::translate("MainWindow", "\350\250\210\347\256\227", nullptr));
         pushButton_6->setText(QCoreApplication::translate("MainWindow", "\346\234\200\351\201\251\345\214\226\350\250\255\345\256\232", nullptr));
@@ -439,6 +438,7 @@ public:
         groupBox_2->setTitle(QCoreApplication::translate("MainWindow", "\346\212\230\343\202\212\350\277\224\343\201\227\346\226\271\346\263\225", nullptr));
         radioButton_3->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\223 \343\202\270\343\202\260\343\202\266\343\202\260", nullptr));
         radioButton_4->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\221 \344\270\200\346\226\271\345\220\221\357\274\210\346\234\252\357\274\211", nullptr));
+        groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "\343\203\254\343\202\244\343\202\242\343\202\246\343\203\210", nullptr));
     } // retranslateUi
 
 };
