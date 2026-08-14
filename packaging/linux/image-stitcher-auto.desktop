@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Image Stitcher Auto
+Comment=Stitch multiple microscope images
+Exec=Image_Stitcher_Auto
+Icon=image-stitcher-auto
+Categories=Graphics;Photography;
+Terminal=false

@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "platform_setup.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -8,9 +9,7 @@
 
 int main(int argc, char *argv[])
 {
-#ifdef Q_OS_WIN
-    qputenv("QT_IMAGEIO_MAXALLOC", QByteArray("0"));
-#endif
+    image_stitcher::platform::configureEnvironment();
 
     QApplication a(argc, argv);
 

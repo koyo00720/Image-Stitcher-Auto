@@ -1,0 +1,13 @@
+# CMake / Qt のビルド生成物・配布パッケージ
+/build/
+
+# Qt Creator のユーザー固有設定
+/.qtcreator/
+*.user
+*.user.*
+
+# Windows リソースコンパイラの中間生成物
+*.aps
+
+# Linux AppImage 作成用のダウンロード済みバイナリ
+/tools/*.AppImage

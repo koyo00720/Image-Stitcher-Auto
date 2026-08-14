@@ -18,10 +18,59 @@ Image_Stitcher_Auto.exe --input "C:\〇〇" --manual --over_x 25 --over_y 25 --o
 - ヘルプ  
 Image_Stitcher_Auto.exe -h
 
-## Build
-- Qt 6.10.2 (MinGW 64-bit)
-- OpenCV 4.12.0
-- CMake + Ninja (optional)
+Linuxでは実行ファイル名を `Image_Stitcher_Auto`、パスをLinux形式に読み替えてください。
+
+## Linux向け
+- インストール (.deb)  
+sudo apt install ./dist/image-stitcher-auto_*.deb
+- インストール後に実行  
+ターミナルにて Image_Stitcher_Auto または /usr/bin/Image_Stitcher_Auto
+- アンインストール (.deb)  
+sudo apt remove image-stitcher-auto
+- インストールせずにそのまま実行 (.AppImage)  
+chmod +x Image_Stitcher_Auto*.AppImage  
+./Image_Stitcher_Auto*.AppImage
+
+## ソース構成
+
+```text
+src/
+├── app/                 # エントリーポイント、メインウィンドウ
+├── core/                # Qtの画面構成に依存しない主要ロジック
+├── dialogs/             # ダイアログと対応する.uiファイル
+├── widgets/             # 再利用するカスタムウィジェット
+└── platform/
+    ├── platform_setup.h # 共通インターフェース
+    ├── windows/         # Windows実装、アイコン、リソース
+    └── linux/           # Linux実装
+resources/               # OS共通の画像とQtリソース
+```
+
+CMake構成時に対象OSを判定し、`src/platform/windows` または
+`src/platform/linux` の実装だけをビルドします。OS固有処理を追加する場合は、
+共通インターフェースを `src/platform` に置き、各OSの同名実装へ分けてください。
+
+## ビルド
+
+必要なもの:
+
+- C++17対応コンパイラ
+- Qt 5またはQt 6（Widgets、Concurrent）
+- OpenCV（core、imgcodecs、imgproc、highgui）
+- CMake 3.16以降
+
+QtとOpenCVを標準外の場所へインストールした場合は、各パッケージの場所を指定します。
+
+```sh
+cmake -S . -B build/release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH=/path/to/Qt \
+  -DOpenCV_DIR=/path/to/opencv/lib/cmake/opencv4
+cmake --build build/release
+```
+
+Windowsの既存開発環境では、`C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib`
+が存在する場合に限り、OpenCVの検索候補として自動的に使用します。
 
 ## Third-party libraries
 This project uses:

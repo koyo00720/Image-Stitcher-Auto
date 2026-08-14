@@ -1,4 +1,4 @@
-#include "DropArea.h"
+#include "droparea.h"
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
