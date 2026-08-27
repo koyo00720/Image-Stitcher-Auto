@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "app_settings.h"
 #include "platform_setup.h"
 
 #include <QApplication>
@@ -14,7 +15,9 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     QCoreApplication::setApplicationName("Image Stitcher Auto");
-    QCoreApplication::setApplicationVersion("1.1.2");
+    QCoreApplication::setOrganizationName("Image Stitcher Auto");
+    QCoreApplication::setApplicationVersion("1.2.0");
+    applyApplicationTheme(AppSettings::theme());
 
     QCommandLineParser parser;
     parser.addHelpOption();

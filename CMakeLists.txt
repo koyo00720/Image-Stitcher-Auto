@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Image_Stitcher_Auto VERSION 1.1.2 LANGUAGES CXX)
+project(Image_Stitcher_Auto VERSION 1.2.0 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -22,6 +22,40 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent)
 find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc highgui)
 
+option(IMAGE_STITCHER_ENABLE_VULKAN "Enable the Vulkan SSIM compute path when available" ON)
+if(IMAGE_STITCHER_ENABLE_VULKAN)
+    find_package(Vulkan QUIET)
+
+    # Some MinGW installations provide the Vulkan development files through
+    # MSYS2 even when no standalone Vulkan SDK is installed. Find them as a
+    # portable fallback; Vulkan remains optional when neither source exists.
+    if(NOT Vulkan_FOUND AND WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        find_path(IMAGE_STITCHER_VULKAN_INCLUDE_DIR
+            NAMES vulkan/vulkan.h
+            HINTS
+                "$ENV{VULKAN_SDK}/Include"
+                "$ENV{VULKAN_SDK}/include"
+                "$ENV{MSYSTEM_PREFIX}/include"
+                "C:/msys64/mingw64/include"
+        )
+        find_library(IMAGE_STITCHER_VULKAN_LIBRARY
+            NAMES vulkan-1
+            HINTS
+                "$ENV{VULKAN_SDK}/Lib"
+                "$ENV{VULKAN_SDK}/lib"
+                "$ENV{MSYSTEM_PREFIX}/lib"
+                "C:/msys64/mingw64/lib"
+        )
+        if(IMAGE_STITCHER_VULKAN_INCLUDE_DIR AND IMAGE_STITCHER_VULKAN_LIBRARY)
+            set(Vulkan_INCLUDE_DIR "${IMAGE_STITCHER_VULKAN_INCLUDE_DIR}" CACHE PATH
+                "Vulkan include directory" FORCE)
+            set(Vulkan_LIBRARY "${IMAGE_STITCHER_VULKAN_LIBRARY}" CACHE FILEPATH
+                "Vulkan loader library" FORCE)
+            find_package(Vulkan QUIET)
+        endif()
+    endif()
+endif()
+
 set(APP_SOURCES
     src/app/main.cpp
     src/app/mainwindow.cpp
@@ -30,13 +64,21 @@ set(APP_SOURCES
 )
 
 set(CORE_SOURCES
+    src/core/app_settings.cpp
+    src/core/app_settings.h
     src/core/image_utils.cpp
     src/core/image_utils.h
     src/core/trws.cpp
     src/core/trws.h
+    src/core/vulkan_ssim.cpp
+    src/core/vulkan_ssim.h
+    src/core/vulkan_ssim_shader.h
+    src/core/shaders/ssim_batch.comp
 )
 
 set(DIALOG_SOURCES
+    src/dialogs/application_settings_dialog.cpp
+    src/dialogs/application_settings_dialog.h
     src/dialogs/detail_dialog.cpp
     src/dialogs/detail_dialog.h
     src/dialogs/detail_opti_dialog.cpp
@@ -125,6 +167,14 @@ target_link_libraries(Image_Stitcher_Auto PRIVATE
     Qt${QT_VERSION_MAJOR}::Concurrent
     ${OpenCV_LIBS}
 )
+
+if(IMAGE_STITCHER_ENABLE_VULKAN AND Vulkan_FOUND)
+    target_link_libraries(Image_Stitcher_Auto PRIVATE Vulkan::Vulkan)
+    target_compile_definitions(Image_Stitcher_Auto PRIVATE IMAGE_STITCHER_HAS_VULKAN=1)
+    message(STATUS "Image Stitcher Auto Vulkan SSIM: enabled")
+else()
+    message(STATUS "Image Stitcher Auto Vulkan SSIM: unavailable; CPU fallback only")
+endif()
 
 target_include_directories(Image_Stitcher_Auto PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app

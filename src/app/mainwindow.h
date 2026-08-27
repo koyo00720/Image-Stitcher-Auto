@@ -12,8 +12,10 @@
 #include <QColor>
 
 #include <opencv2/core.hpp>
+#include "app_settings.h"
 #include "canvas_history_graph_widget.h"
 #include "detail_opti_dialog.h"
+#include "vulkan_ssim.h"
 #include <functional>
 
 QT_BEGIN_NAMESPACE
@@ -31,6 +33,7 @@ class QScrollArea;
 class QLineEdit;
 class QPushButton;
 class QGraphicsRectItem;
+class ApplicationSettingsDialog;
 
 struct return_struct1 {
     double score = 0.0;
@@ -97,6 +100,7 @@ struct CalcTRWSinput
     int all_radi;
     int all_opti;
     int all_itr;
+    VulkanExecutionOptions vulkan;
     std::function<void(int, int, const QString&)> progressCallback;
 };
 
@@ -231,6 +235,7 @@ private slots:
     void calc_least_squares_finish();
     void show_detail_opti();
     void show_detail_least_squares();
+    void show_application_settings();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -305,6 +310,7 @@ private:
     void clearImageHighlights();
     void clearImageHighlightRects();
     void rebuildImageHighlights();
+    void startDelayedVulkanDetection();
     void showOptimizationProgressDialog();
     void updateOptimizationProgress(int value, int maximum, const QString& text);
     void hideOptimizationProgressDialog();
@@ -324,6 +330,11 @@ private:
     QColor imageHighlightColor = QColor(255, 64, 64);
     QVector<int> imageHighlightIndices;
     QVector<QGraphicsRectItem*> imageHighlightRects;
+
+    ApplicationSettingsDialog* applicationSettingsDialog = nullptr;
+    QFutureWatcher<VulkanDeviceScanResult>* vulkanScanWatcher = nullptr;
+    VulkanDeviceScanResult vulkanScanResult;
+    bool vulkanDetectionInProgress = false;
 
     int calc_loop_num = 5; // 最大5回ループ計算する
 

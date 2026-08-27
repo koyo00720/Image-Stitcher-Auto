@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "application_settings_dialog.h"
 #include "file_input_wiz.h"
 #include "image_utils.h"
 #include "cornerdirectionselector.h"
@@ -43,9 +44,11 @@
 #include <opencv2/core.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <array>
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <utility>
 //#include <numeric>
@@ -690,16 +693,17 @@ cv::Mat mergeImagesForExport(const std::vector<cv::Mat>& imgs,
 }
 }
 
-// 2つの画像から重なり領域をクロップして取り出す
-return_struct2 Crop_2ImageTo2Image(const cv::Mat& input1, const cv::Mat& input2,
-                                   QSize px1, QPoint pos1, QSize px2, QPoint pos2)
+static bool calculateOverlapCropRois(const cv::Mat& input1,
+                                     const cv::Mat& input2,
+                                     const QPoint& pos1,
+                                     const QPoint& pos2,
+                                     const cv::Mat1b* fullMask1,
+                                     const cv::Mat1b* fullMask2,
+                                     cv::Rect& cropRoi1,
+                                     cv::Rect& cropRoi2)
 {
-    Q_UNUSED(px1);
-    Q_UNUSED(px2);
-
-    return_struct2 r;
     if (input1.empty() || input2.empty()) {
-        return r;
+        return false;
     }
 
     const int left = std::max(pos1.x(), pos2.x());
@@ -707,15 +711,21 @@ return_struct2 Crop_2ImageTo2Image(const cv::Mat& input1, const cv::Mat& input2,
     const int right = std::min(pos1.x() + input1.cols, pos2.x() + input2.cols);
     const int bottom = std::min(pos1.y() + input1.rows, pos2.y() + input2.rows);
     if (right <= left || bottom <= top) {
-        return r;
+        return false;
     }
 
     const cv::Rect roi1(left - pos1.x(), top - pos1.y(), right - left, bottom - top);
     const cv::Rect roi2(left - pos2.x(), top - pos2.y(), right - left, bottom - top);
 
-    // Alphaをlogical配列へ変換
-    cv::Mat1b logicalMask1 = ImageUtils::alphaMaskFromBGRA(input1(roi1), 0.5); // 0/1
-    cv::Mat1b logicalMask2 = ImageUtils::alphaMaskFromBGRA(input2(roi2), 0.5); // 0/1
+    cv::Mat1b logicalMask1;
+    cv::Mat1b logicalMask2;
+    if (fullMask1 && fullMask2) {
+        logicalMask1 = (*fullMask1)(roi1);
+        logicalMask2 = (*fullMask2)(roi2);
+    } else {
+        logicalMask1 = ImageUtils::alphaMaskFromBGRA(input1(roi1), 0.5); // 0/1
+        logicalMask2 = ImageUtils::alphaMaskFromBGRA(input2(roi2), 0.5); // 0/1
+    }
 
     // 重なり領域を得る
     cv::Mat1b andMask;
@@ -724,11 +734,28 @@ return_struct2 Crop_2ImageTo2Image(const cv::Mat& input1, const cv::Mat& input2,
     // and領域を矩形化する
     cv::Rect rect = ImageUtils::maxRectOnesFromLogical(andMask);
     if (rect.empty()) {
-        return r;
+        return false;
     }
 
-    const cv::Rect cropRoi1(roi1.x + rect.x, roi1.y + rect.y, rect.width, rect.height);
-    const cv::Rect cropRoi2(roi2.x + rect.x, roi2.y + rect.y, rect.width, rect.height);
+    cropRoi1 = cv::Rect(roi1.x + rect.x, roi1.y + rect.y, rect.width, rect.height);
+    cropRoi2 = cv::Rect(roi2.x + rect.x, roi2.y + rect.y, rect.width, rect.height);
+    return true;
+}
+
+// 2つの画像から重なり領域をクロップして取り出す
+return_struct2 Crop_2ImageTo2Image(const cv::Mat& input1, const cv::Mat& input2,
+                                   QSize px1, QPoint pos1, QSize px2, QPoint pos2)
+{
+    Q_UNUSED(px1);
+    Q_UNUSED(px2);
+
+    return_struct2 r;
+    cv::Rect cropRoi1;
+    cv::Rect cropRoi2;
+    if (!calculateOverlapCropRois(input1, input2, pos1, pos2,
+                                  nullptr, nullptr, cropRoi1, cropRoi2)) {
+        return r;
+    }
 
     // 重なり領域をcropして取り出す
     cv::cvtColor(input1(cropRoi1), r.img1, cv::COLOR_BGRA2BGR);
@@ -818,6 +845,11 @@ static double SSIM_calc_oneshot(const SSIM_TaskInput& in)
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    // メニューバー左端の設定ボタン
+    QAction* applicationSettingsAction = ui->menubar->addAction("設定");
+    connect(applicationSettingsAction, &QAction::triggered,
+            this, &MainWindow::show_application_settings);
 
     // 入力画像設定ボタン
     connect(ui->pushButton_1, &QPushButton::clicked, this, [this]() {
@@ -1052,6 +1084,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->pushButton_5, &QPushButton::clicked, this, &MainWindow::show_detail_opti);
 
     m_detailDialog = new detail_opti_dialog(this);
+
+    vulkanScanWatcher = new QFutureWatcher<VulkanDeviceScanResult>(this);
+    // タイマー発火前に設定画面を開いた場合も「未検出」ではなく待機中と表示する。
+    vulkanDetectionInProgress = VulkanSsimEngine::isBuilt();
+    connect(vulkanScanWatcher, &QFutureWatcher<VulkanDeviceScanResult>::finished,
+            this, [this]() {
+        vulkanDetectionInProgress = false;
+        vulkanScanResult = vulkanScanWatcher->result();
+        if (applicationSettingsDialog) {
+            applicationSettingsDialog->setVulkanScanResult(vulkanScanResult);
+        }
+    });
+
+    // イベントループ開始後にバックグラウンド検出し、起動時間へ影響させない。
+    QTimer::singleShot(750, this, &MainWindow::startDelayedVulkanDetection);
 }
 
 MainWindow::~MainWindow()
@@ -1062,6 +1109,7 @@ MainWindow::~MainWindow()
     disconnect(&image_make_Watcher, nullptr, this, nullptr);
     disconnect(trwsWatcher, nullptr, this, nullptr);
     disconnect(leastSquaresWatcher, nullptr, this, nullptr);
+    disconnect(vulkanScanWatcher, nullptr, this, nullptr);
     if (scene) {
         disconnect(scene, nullptr, this, nullptr);
     }
@@ -1072,7 +1120,39 @@ MainWindow::~MainWindow()
     if (image_make_Watcher.isRunning()) { image_make_Watcher.cancel(); image_make_Watcher.waitForFinished(); }
     if (trwsWatcher->isRunning()) { trwsWatcher->cancel(); trwsWatcher->waitForFinished(); }
     if (leastSquaresWatcher->isRunning()) { leastSquaresWatcher->cancel(); leastSquaresWatcher->waitForFinished(); }
+    if (vulkanScanWatcher->isRunning()) { vulkanScanWatcher->cancel(); vulkanScanWatcher->waitForFinished(); }
     delete ui;
+}
+
+void MainWindow::show_application_settings()
+{
+    if (!applicationSettingsDialog) {
+        applicationSettingsDialog = new ApplicationSettingsDialog(this);
+        applicationSettingsDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+    }
+
+    if (vulkanDetectionInProgress) {
+        applicationSettingsDialog->setVulkanDetectionInProgress();
+    } else {
+        applicationSettingsDialog->setVulkanScanResult(vulkanScanResult);
+    }
+    applicationSettingsDialog->show();
+    applicationSettingsDialog->raise();
+    applicationSettingsDialog->activateWindow();
+}
+
+void MainWindow::startDelayedVulkanDetection()
+{
+    if (vulkanScanWatcher->isRunning()) {
+        return;
+    }
+    vulkanDetectionInProgress = true;
+    if (applicationSettingsDialog) {
+        applicationSettingsDialog->setVulkanDetectionInProgress();
+    }
+    vulkanScanWatcher->setFuture(QtConcurrent::run([]() {
+        return VulkanSsimEngine::detectDevices();
+    }));
 }
 
 static int viewZoomPercent(const QGraphicsView *view)
@@ -4760,7 +4840,8 @@ PairResult processOnePair(
     const QVector<QPoint>& poss,
     const std::vector<ShiftDelta>& deltas,
     int K,
-    int radi)
+    int radi,
+    const VulkanExecutionOptions& vulkanOptions)
 {
     PairResult result;
     result.i = task.i;
@@ -4786,6 +4867,71 @@ PairResult processOnePair(
         return (dy + 2 * radi) * diffSpan + (dx + 2 * radi);
     };
 
+    // Vulkanでは元画像2枚を一度だけ転送し、全相対変位のROIを一括処理する。
+    if (vulkanOptions.enabled && VulkanSsimEngine::isBuilt()) {
+        std::vector<ShiftDelta> uniqueDeltas;
+        std::vector<int> uniqueCostIndices;
+        std::vector<int> taskIndexForCost(diffSpan * diffSpan, -1);
+        uniqueDeltas.reserve(diffSpan * diffSpan);
+        uniqueCostIndices.reserve(diffSpan * diffSpan);
+
+        for (int idx = 0; idx < K * K; ++idx) {
+            const ShiftDelta& delta = deltas[idx];
+            const int costIndex = diffIndex(delta.dx, delta.dy);
+            if (taskIndexForCost[costIndex] >= 0) {
+                continue;
+            }
+            taskIndexForCost[costIndex] = static_cast<int>(uniqueDeltas.size());
+            uniqueDeltas.push_back(delta);
+            uniqueCostIndices.push_back(costIndex);
+        }
+
+        try {
+            const cv::Mat1b mask1 = ImageUtils::alphaMaskFromBGRA(img1, 0.5);
+            const cv::Mat1b mask2 = ImageUtils::alphaMaskFromBGRA(img2, 0.5);
+            std::vector<VulkanSsimRoiPair> rois(uniqueDeltas.size());
+            for (size_t i = 0; i < uniqueDeltas.size(); ++i) {
+                const QPoint shiftedPos2(pos2.x() + uniqueDeltas[i].dx,
+                                         pos2.y() + uniqueDeltas[i].dy);
+                calculateOverlapCropRois(img1, img2, pos1, shiftedPos2,
+                                         &mask1, &mask2,
+                                         rois[i].first, rois[i].second);
+            }
+
+            const VulkanSsimBatchResult gpuResult = VulkanSsimEngine::computeBatch(
+                img1, img2, rois, vulkanOptions.deviceKey,
+                vulkanOptions.ignoreVramLimit);
+            if (gpuResult.succeeded() && gpuResult.scores.size() == uniqueDeltas.size()) {
+                static std::atomic_bool vulkanSuccessLogged{false};
+                if (!vulkanSuccessLogged.exchange(true)) {
+                    qInfo().noquote()
+                        << QString("Vulkan SSIM enabled (VRAM estimate: %1 MiB, limit: %2 MiB)")
+                               .arg(gpuResult.requiredVramBytes / (1024 * 1024))
+                               .arg(gpuResult.vramLimitBytes / (1024 * 1024));
+                }
+                for (size_t i = 0; i < uniqueDeltas.size(); ++i) {
+                    const double s_v = gpuResult.scores[i];
+                    const double ratio = (1.0 - s_v) / s_v;
+                    const int costIndex = uniqueCostIndices[i];
+                    cachedCosts[costIndex] = ratio * ratio / 81.0;
+                    computed[costIndex] = 1;
+                }
+            } else if (gpuResult.status == VulkanSsimStatus::VramLimitExceeded) {
+                static std::atomic_bool vramFallbackLogged{false};
+                if (!vramFallbackLogged.exchange(true)) {
+                    qInfo().noquote()
+                        << QString("Vulkan SSIM CPU fallback: VRAM estimate %1 MiB exceeds limit %2 MiB")
+                               .arg(gpuResult.requiredVramBytes / (1024 * 1024))
+                               .arg(gpuResult.vramLimitBytes / (1024 * 1024));
+                }
+            }
+        } catch (const cv::Exception&) {
+            // Vulkan前処理が失敗した場合も、未計算分を下のCPU経路で処理する。
+        } catch (const std::exception&) {
+            // メモリ確保失敗等でもCPUフォールバックを維持する。
+        }
+    }
+
     for (int idx = 0; idx < K * K; ++idx) {
         const auto& d = deltas[idx];
         const int ci = diffIndex(d.dx, d.dy);
@@ -4799,7 +4945,8 @@ PairResult processOnePair(
                     d.dx, d.dy
                 }
                 );
-            cachedCosts[ci] = ((1 - s_v) / s_v) * ((1 - s_v) / s_v) / 81;
+            const double ratio = (1.0 - s_v) / s_v;
+            cachedCosts[ci] = ratio * ratio / 81.0;
             computed[ci] = 1;
         }
 
@@ -5363,6 +5510,7 @@ void MainWindow::calc_TRWS()
     input.all_radi = all_radi;
     input.all_opti = all_opti;
     input.all_itr = all_itr;
+    input.vulkan = AppSettings::vulkanOptions();
     input.progressCallback = [this](int value, int maximum, const QString& text) {
         QMetaObject::invokeMethod(this, [this, value, maximum, text]() {
             updateOptimizationProgress(value, maximum, text);
@@ -5575,7 +5723,8 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
                     //QThreadPool::globalInstance()->setMaxThreadCount(QThread::idealThreadCount());
 
                     auto mapFunc = [&](const PairTask& t) -> PairResult {
-                        return processOnePair(t, in.imgs, in.res_all, in_poss, deltasp, Kp, in.pa_radi);
+                        return processOnePair(t, in.imgs, in.res_all, in_poss,
+                                              deltasp, Kp, in.pa_radi, in.vulkan);
                     };
                     auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
                         if (r.valid) {
@@ -5850,7 +5999,8 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             //QThreadPool::globalInstance()->setMaxThreadCount(QThread::idealThreadCount());
 
             auto mapFunc = [&](const PairTask& t) -> PairResult {
-                return processOnePair(t, in.imgs, in.res_all, in_poss, deltas, K, in.all_radi);
+                return processOnePair(t, in.imgs, in.res_all, in_poss,
+                                      deltas, K, in.all_radi, in.vulkan);
             };
             auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
                 if (r.valid) {

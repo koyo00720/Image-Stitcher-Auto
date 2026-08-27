@@ -58,6 +58,7 @@ CMake構成時に対象OSを判定し、`src/platform/windows` または
 - Qt 5またはQt 6（Widgets、Concurrent）
 - OpenCV（core、imgcodecs、imgproc、highgui）
 - CMake 3.16以降
+- Vulkan SDK、またはVulkanのヘッダーとローダー（任意。未検出時はCPU計算のみ）
 
 QtとOpenCVを標準外の場所へインストールした場合は、各パッケージの場所を指定します。
 
@@ -68,6 +69,11 @@ cmake -S . -B build/release \
   -DOpenCV_DIR=/path/to/opencv/lib/cmake/opencv4
 cmake --build build/release
 ```
+
+Vulkan計算を明示的に無効化する場合は、CMake構成時に
+`-DIMAGE_STITCHER_ENABLE_VULKAN=OFF` を追加してください。Vulkan対応ビルドでは、
+設定画面から使用GPUを選択できます。既定では必要VRAMが選択GPUのVRAMの70%を
+超える計算をCPUへフォールバックします。
 
 Windowsの既存開発環境では、`C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib`
 が存在する場合に限り、OpenCVの検索候補として自動的に使用します。

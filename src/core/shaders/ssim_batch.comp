@@ -1,0 +1,137 @@
+#version 450
+
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+struct Job {
+    uint offset1;
+    uint offset2;
+    uint stride1;
+    uint stride2;
+    uint roiX1;
+    uint roiY1;
+    uint roiX2;
+    uint roiY2;
+    uint width;
+    uint height;
+    uint startPixel;
+    uint pixelCount;
+};
+
+layout(std430, binding = 0) readonly buffer PixelBuffer {
+    float pixels[];
+};
+
+layout(std430, binding = 1) readonly buffer JobBuffer {
+    Job jobs[];
+};
+
+layout(std430, binding = 2) writeonly buffer ResultBuffer {
+    float partialSums[];
+};
+
+layout(push_constant) uniform DispatchInfo {
+    uint rowWidth;
+} dispatchInfo;
+
+shared float reductionValues[128];
+
+const float gaussianWeights[11] = float[](
+    0.0010283801,
+    0.0075987581,
+    0.0360007721,
+    0.1093606895,
+    0.2130055377,
+    0.2660117249,
+    0.2130055377,
+    0.1093606895,
+    0.0360007721,
+    0.0075987581,
+    0.0010283801
+);
+
+int reflect101(int coordinate, int length)
+{
+    if (length <= 1) {
+        return 0;
+    }
+    while (coordinate < 0 || coordinate >= length) {
+        if (coordinate < 0) {
+            coordinate = -coordinate;
+        } else {
+            coordinate = 2 * length - coordinate - 2;
+        }
+    }
+    return coordinate;
+}
+
+void main()
+{
+    const uint jobIndex = gl_WorkGroupID.x
+                          + gl_WorkGroupID.y * dispatchInfo.rowWidth;
+    if (jobIndex >= jobs.length()) {
+        return;
+    }
+
+    const Job job = jobs[jobIndex];
+    const uint localIndex = gl_LocalInvocationID.x;
+    const uint pixelIndex = job.startPixel + localIndex;
+    float value = 0.0;
+
+    if (pixelIndex < job.pixelCount) {
+        const int localX = int(pixelIndex % job.width);
+        const int localY = int(pixelIndex / job.width);
+
+        float mean1 = 0.0;
+        float mean2 = 0.0;
+        float squareMean1 = 0.0;
+        float squareMean2 = 0.0;
+        float productMean = 0.0;
+
+        for (int ky = -5; ky <= 5; ++ky) {
+            const int sampleY = reflect101(localY + ky, int(job.height));
+            const float wy = gaussianWeights[ky + 5];
+            const uint row1 = job.offset1
+                              + (job.roiY1 + uint(sampleY)) * job.stride1;
+            const uint row2 = job.offset2
+                              + (job.roiY2 + uint(sampleY)) * job.stride2;
+
+            for (int kx = -5; kx <= 5; ++kx) {
+                const int sampleX = reflect101(localX + kx, int(job.width));
+                const float weight = wy * gaussianWeights[kx + 5];
+                const float first = pixels[row1 + job.roiX1 + uint(sampleX)];
+                const float second = pixels[row2 + job.roiX2 + uint(sampleX)];
+
+                mean1 += weight * first;
+                mean2 += weight * second;
+                squareMean1 += weight * first * first;
+                squareMean2 += weight * second * second;
+                productMean += weight * first * second;
+            }
+        }
+
+        const float variance1 = squareMean1 - mean1 * mean1;
+        const float variance2 = squareMean2 - mean2 * mean2;
+        const float covariance = productMean - mean1 * mean2;
+        const float c1 = 6.5025;
+        const float c2 = 58.5225;
+        const float numerator = (2.0 * mean1 * mean2 + c1)
+                                * (2.0 * covariance + c2);
+        const float denominator = (mean1 * mean1 + mean2 * mean2 + c1)
+                                  * (variance1 + variance2 + c2);
+        value = numerator / denominator;
+    }
+
+    reductionValues[localIndex] = value;
+    barrier();
+
+    for (uint stride = 64; stride > 0; stride >>= 1) {
+        if (localIndex < stride) {
+            reductionValues[localIndex] += reductionValues[localIndex + stride];
+        }
+        barrier();
+    }
+
+    if (localIndex == 0) {
+        partialSums[jobIndex] = reductionValues[0];
+    }
+}
