@@ -81,9 +81,19 @@ TRWSResult TRWS::run() {
     std::vector<double> newMsg(K, 0.0);
 
     for (int it = 0; it < opts.maxIter; ++it) {
+        if (opts.shouldCancel && opts.shouldCancel()) {
+            out.cancelled = true;
+            out.iterations = it;
+            return out;
+        }
         double Ebound = 0.0;
 
         for (int idx = 0; idx < N; ++idx) {
+            if (opts.shouldCancel && opts.shouldCancel()) {
+                out.cancelled = true;
+                out.iterations = it;
+                return out;
+            }
             int s = currentOrder[idx];
 
             // thetaHat = unary + incoming messages

@@ -16,6 +16,12 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
+  <property name="minimumSize">
+   <size>
+    <width>640</width>
+    <height>420</height>
+   </size>
+  </property>
   <property name="baseSize">
    <size>
     <width>0</width>
@@ -27,11 +33,52 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_2">
-    <item row="0" column="2">
-     <widget class="maincampus" name="graphicsView"/>
-    </item>
+    <property name="topMargin">
+     <number>5</number>
+    </property>
     <item row="0" column="0">
-     <layout class="QGridLayout" name="GridLayout" rowstretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0" columnstretch="0,0,0" rowminimumheight="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+     <widget class="QSplitter" name="mainSplitter">
+      <property name="orientation">
+       <enum>Qt::Orientation::Horizontal</enum>
+      </property>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
+      </property>
+      <widget class="ControlPanelScrollArea" name="leftScrollArea">
+      <property name="minimumSize">
+       <size>
+        <width>320</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="frameShape">
+       <enum>QFrame::Shape::NoFrame</enum>
+      </property>
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="verticalScrollBarPolicy">
+       <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="widgetResizable">
+       <bool>true</bool>
+      </property>
+      <widget class="QWidget" name="leftScrollAreaWidgetContents">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>320</width>
+         <height>800</height>
+        </rect>
+       </property>
+       <layout class="QGridLayout" name="GridLayout" rowstretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0" columnstretch="0,0,0" rowminimumheight="0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+        <property name="topMargin">
+         <number>5</number>
+        </property>
+        <property name="rightMargin">
+         <number>4</number>
+        </property>
       <item row="13" column="0" colspan="3">
        <widget class="QPushButton" name="pushButton_4">
         <property name="text">
@@ -204,19 +251,6 @@
          <item row="3" column="3">
           <widget class="QSpinBox" name="spinOpacity1"/>
          </item>
-         <item row="1" column="2" colspan="2">
-          <widget class="QComboBox" name="comboBox"/>
-         </item>
-         <item row="1" column="1">
-          <widget class="QLabel" name="label">
-           <property name="text">
-            <string>背景色</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignmentFlag::AlignCenter</set>
-           </property>
-          </widget>
-         </item>
          <item row="3" column="1">
           <widget class="QLabel" name="label_2">
            <property name="text">
@@ -254,19 +288,6 @@
        <widget class="QPushButton" name="pushButton_1">
         <property name="text">
          <string>入力画像</string>
-        </property>
-       </widget>
-      </item>
-      <item row="14" column="2">
-       <widget class="QLabel" name="label_7">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string/>
         </property>
        </widget>
       </item>
@@ -399,29 +420,6 @@
         </layout>
        </widget>
       </item>
-      <item row="6" column="0" colspan="3">
-       <widget class="QGroupBox" name="groupBox_2">
-        <property name="title">
-         <string>折り返し方法</string>
-        </property>
-        <layout class="QGridLayout" name="gridLayout_5">
-         <item row="1" column="0">
-          <widget class="QRadioButton" name="radioButton_3">
-           <property name="text">
-            <string>↑↓ ジグザグ</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QRadioButton" name="radioButton_4">
-           <property name="text">
-            <string>↑↑ 一方向（未）</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
       <item row="5" column="0" colspan="3">
        <widget class="QGroupBox" name="groupBox_3">
         <property name="title">
@@ -434,7 +432,18 @@
         </layout>
        </widget>
       </item>
-     </layout>
+       </layout>
+      </widget>
+      </widget>
+      <widget class="maincampus" name="graphicsView">
+       <property name="minimumSize">
+        <size>
+         <width>160</width>
+         <height>0</height>
+        </size>
+       </property>
+      </widget>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -451,6 +460,12 @@
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>ControlPanelScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>controlpanelscrollarea.h</header>
+   <container>1</container>
+  </customwidget>
   <customwidget>
    <class>maincampus</class>
    <extends>QGraphicsView</extends>

@@ -5,11 +5,22 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QPainter>
+#include <QEvent>
 
 DropArea::DropArea(QWidget* parent) : QWidget(parent)
 {
+    hintText_ = tr("ここにドラッグ＆ドロップ");
     setAcceptDrops(true);
     setMinimumSize(200, 120);
+}
+
+void DropArea::changeEvent(QEvent* event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        hintText_ = tr("ここにドラッグ＆ドロップ");
+        update();
+    }
 }
 
 void DropArea::dragEnterEvent(QDragEnterEvent* e)

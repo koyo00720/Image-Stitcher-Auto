@@ -1,4 +1,5 @@
 C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/Image_Stitcher_Auto.dir
+C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/Image_Stitcher_Auto_translations.dir
 C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/edit_cache.dir
 C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/rebuild_cache.dir
 C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/list_install_components.dir

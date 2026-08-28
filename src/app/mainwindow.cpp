@@ -10,19 +10,30 @@
 #include "least_squares_settings.h"
 #include "merge_settings.h"
 #include "canvas_history_graph_widget.h"
+#include "metal_ssim.h"
 
 #include <QFileDialog>
 #include <QString>
 #include <QStringList>
 #include <QPixmap>
 #include <QAction>
+#include <QCheckBox>
 #include <QColorDialog>
+#include <QDialogButtonBox>
+#include <QDir>
+#include <QDirIterator>
+#include <QEvent>
+#include <QEventLoop>
+#include <QFileInfo>
 #include <QGraphicsRectItem>
 #include <QGraphicsPixmapItem>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMenu>
 #include <QPen>
 #include <QSignalBlocker>
+#include <QSet>
+#include <QSplitter>
 #include <QtConcurrent/QtConcurrent>
 #include <QIntValidator>
 #include <QImageReader>
@@ -50,8 +61,15 @@
 #include <cstdint>
 #include <exception>
 #include <limits>
+#include <mutex>
 #include <utility>
 //#include <numeric>
+
+static bool workerCancellationRequested(
+    const std::shared_ptr<std::atomic_bool>& cancellation)
+{
+    return cancellation && cancellation->load(std::memory_order_relaxed);
+}
 
 // iFFT用関数
 static cv::Mat1f clahe_then_grad(const cv::Mat& im_bgr)
@@ -116,7 +134,8 @@ cv::Mat make_canvas_bgra_feather_dt(
     const cv::Mat& cam1,
     const cv::Mat& cam2,
     const cv::Point2d& shift_from_phaseCorrelate,
-    float featherRadius = 80.0f)
+    float featherRadius = 80.0f,
+    const std::shared_ptr<std::atomic_bool>& cancellation = {})
 {
     CV_Assert(!cam1.empty() && !cam2.empty());
     CV_Assert(cam1.type() == CV_8UC4 && cam2.type() == CV_8UC4);
@@ -161,6 +180,7 @@ cv::Mat make_canvas_bgra_feather_dt(
     cv::Mat1b m2(out_h, out_w, uchar(0));
 
     for (int r = 0; r < out_h; ++r) {
+        if (workerCancellationRequested(cancellation)) return {};
         const cv::Vec4b* p1 = img1.ptr<cv::Vec4b>(r);
         const cv::Vec4b* p2 = img2.ptr<cv::Vec4b>(r);
         uchar* q1 = m1.ptr<uchar>(r);
@@ -188,6 +208,7 @@ cv::Mat make_canvas_bgra_feather_dt(
     constexpr float eps = 1e-6f;
 
     for (int r = 0; r < out_h; ++r) {
+        if (workerCancellationRequested(cancellation)) return {};
         const cv::Vec4b* p1 = img1.ptr<cv::Vec4b>(r);
         const cv::Vec4b* p2 = img2.ptr<cv::Vec4b>(r);
         const float* dd1 = d1.ptr<float>(r);
@@ -363,12 +384,14 @@ bool mergeCalculateBounds(const std::vector<cv::Mat>& imgs,
 std::vector<MergePlacedImage> mergePreparePlacedImages(const std::vector<cv::Mat>& imgs,
                                                        const QVector<QPoint>& poss,
                                                        int minX,
-                                                       int minY)
+                                                       int minY,
+                                                       const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     std::vector<MergePlacedImage> placed;
     placed.reserve(imgs.size());
 
     for (int i = 0; i < static_cast<int>(imgs.size()); ++i) {
+        if (workerCancellationRequested(cancellation)) return {};
         cv::Mat bgra = mergeEnsureBgra(imgs[i]);
         if (bgra.empty()) {
             continue;
@@ -386,7 +409,8 @@ std::vector<MergePlacedImage> mergePreparePlacedImages(const std::vector<cv::Mat
 }
 
 cv::Mat mergeByTenengradPixel(const std::vector<MergePlacedImage>& placed,
-                              const cv::Size& canvasSize)
+                              const cv::Size& canvasSize,
+                              const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     cv::Mat canvas(canvasSize.height, canvasSize.width, CV_8UC4,
                    cv::Scalar(0, 0, 0, 0));
@@ -395,6 +419,7 @@ cv::Mat mergeByTenengradPixel(const std::vector<MergePlacedImage>& placed,
 
     for (const MergePlacedImage& item : placed) {
         for (int y = 0; y < item.bgra.rows; ++y) {
+            if (workerCancellationRequested(cancellation)) return {};
             const int cy = item.topLeft.y() + y;
             if (cy < 0 || cy >= canvasSize.height) {
                 continue;
@@ -438,7 +463,8 @@ std::uint64_t mergeSourceKeyForImage(int image)
 cv::Mat mergeBySimpleOverlayAndBuildSourceMap(const std::vector<MergePlacedImage>& placed,
                                                const cv::Size& canvasSize,
                                                std::vector<std::uint64_t>& sourceKeys,
-                                               std::vector<unsigned short>& sourceCounts)
+                                               std::vector<unsigned short>& sourceCounts,
+                                               const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     cv::Mat canvas(canvasSize.height, canvasSize.width, CV_8UC4,
                    cv::Scalar(0, 0, 0, 0));
@@ -450,6 +476,7 @@ cv::Mat mergeBySimpleOverlayAndBuildSourceMap(const std::vector<MergePlacedImage
         const MergePlacedImage& item = placed[image];
         const std::uint64_t imageKey = mergeSourceKeyForImage(image);
         for (int y = 0; y < item.bgra.rows; ++y) {
+            if (workerCancellationRequested(cancellation)) return {};
             const int cy = item.topLeft.y() + y;
             if (cy < 0 || cy >= canvasSize.height) {
                 continue;
@@ -505,11 +532,13 @@ std::vector<int> mergeImagesCoveringCanvasPixel(const std::vector<MergePlacedIma
 }
 
 cv::Mat mergeByFocusRegion(const std::vector<MergePlacedImage>& placed,
-                           const cv::Size& canvasSize)
+                           const cv::Size& canvasSize,
+                           const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     std::vector<std::uint64_t> sourceKeys;
     std::vector<unsigned short> sourceCounts;
-    cv::Mat canvas = mergeBySimpleOverlayAndBuildSourceMap(placed, canvasSize, sourceKeys, sourceCounts);
+    cv::Mat canvas = mergeBySimpleOverlayAndBuildSourceMap(
+        placed, canvasSize, sourceKeys, sourceCounts, cancellation);
     if (sourceKeys.empty()) {
         return canvas;
     }
@@ -526,6 +555,7 @@ cv::Mat mergeByFocusRegion(const std::vector<MergePlacedImage>& placed,
     const int neighborDy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
 
     for (int startIndex = 0; startIndex < static_cast<int>(sourceKeys.size()); ++startIndex) {
+        if (workerCancellationRequested(cancellation)) return {};
         if (visited[startIndex] || sourceCounts[static_cast<size_t>(startIndex)] < 2) {
             continue;
         }
@@ -538,6 +568,7 @@ cv::Mat mergeByFocusRegion(const std::vector<MergePlacedImage>& placed,
         visited[startIndex] = 1;
 
         while (!stack.empty()) {
+            if (workerCancellationRequested(cancellation)) return {};
             const int index = stack.back();
             stack.pop_back();
             regionPixels.push_back(index);
@@ -623,7 +654,8 @@ cv::Mat mergeByFocusRegion(const std::vector<MergePlacedImage>& placed,
 }
 
 cv::Mat mergeByLegacyDistanceL2(const std::vector<cv::Mat>& imgs,
-                                const QVector<QPoint>& poss)
+                                const QVector<QPoint>& poss,
+                                const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     if (imgs.empty() || poss.size() != static_cast<int>(imgs.size())) {
         return {};
@@ -638,6 +670,7 @@ cv::Mat mergeByLegacyDistanceL2(const std::vector<cv::Mat>& imgs,
     QPoint outOrigin = poss[0];
 
     for (int i = 1; i < static_cast<int>(imgs.size()); ++i) {
+        if (workerCancellationRequested(cancellation)) return {};
         cv::Mat next = mergeEnsureBgra(imgs[i]);
         if (next.empty()) {
             return {};
@@ -645,7 +678,7 @@ cv::Mat mergeByLegacyDistanceL2(const std::vector<cv::Mat>& imgs,
 
         const cv::Point2d shiftV(poss[i].x() - outOrigin.x(),
                                  poss[i].y() - outOrigin.y());
-        out = make_canvas_bgra_feather_dt(next, out, shiftV, 80.0f);
+        out = make_canvas_bgra_feather_dt(next, out, shiftV, 80.0f, cancellation);
         outOrigin.setX(std::min(outOrigin.x(), poss[i].x()));
         outOrigin.setY(std::min(outOrigin.y(), poss[i].y()));
     }
@@ -655,16 +688,17 @@ cv::Mat mergeByLegacyDistanceL2(const std::vector<cv::Mat>& imgs,
 
 cv::Mat mergeImagesForExport(const std::vector<cv::Mat>& imgs,
                              const QVector<QPoint>& poss,
-                             ImageMergeMode mode)
+                             ImageMergeMode mode,
+                             const std::shared_ptr<std::atomic_bool>& cancellation)
 {
-    if (imgs.empty()) {
+    if (imgs.empty() || workerCancellationRequested(cancellation)) {
         return {};
     }
     if (imgs.size() == 1) {
         return mergeEnsureBgra(imgs[0]);
     }
     if (mode == ImageMergeMode::DistanceL2) {
-        return mergeByLegacyDistanceL2(imgs, poss);
+        return mergeByLegacyDistanceL2(imgs, poss, cancellation);
     }
 
     int minX = 0;
@@ -676,19 +710,19 @@ cv::Mat mergeImagesForExport(const std::vector<cv::Mat>& imgs,
     }
 
     const cv::Size canvasSize(maxX - minX, maxY - minY);
-    const auto placed = mergePreparePlacedImages(imgs, poss, minX, minY);
+    const auto placed = mergePreparePlacedImages(imgs, poss, minX, minY, cancellation);
     if (placed.empty()) {
         return {};
     }
 
     switch (mode) {
     case ImageMergeMode::FocusRegion:
-        return mergeByFocusRegion(placed, canvasSize);
+        return mergeByFocusRegion(placed, canvasSize, cancellation);
     case ImageMergeMode::FocusStackTenengrad:
-        return mergeByTenengradPixel(placed, canvasSize);
+        return mergeByTenengradPixel(placed, canvasSize, cancellation);
     case ImageMergeMode::DistanceL2:
     default:
-        return mergeByLegacyDistanceL2(imgs, poss);
+        return mergeByLegacyDistanceL2(imgs, poss, cancellation);
     }
 }
 }
@@ -846,24 +880,109 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 {
     ui->setupUi(this);
 
-    // メニューバー左端の設定ボタン
-    QAction* applicationSettingsAction = ui->menubar->addAction("設定");
+    settingsPersistenceTimer = new QTimer(this);
+    settingsPersistenceTimer->setSingleShot(true);
+    settingsPersistenceTimer->setInterval(180);
+    connect(settingsPersistenceTimer, &QTimer::timeout, this, [this]() {
+        persistAlignmentSettings();
+        persistArrangementSettings();
+        persistControlPanelWidth();
+    });
+
+    ui->mainSplitter->setChildrenCollapsible(false);
+    ui->mainSplitter->setStretchFactor(0, 0);
+    ui->mainSplitter->setStretchFactor(1, 1);
+    const int minimumControlPanelWidth = ui->leftScrollArea->minimumWidth();
+    const int savedControlPanelWidth =
+        AppSettings::controlPanelWidth(minimumControlPanelWidth);
+    QTimer::singleShot(0, this, [this, savedControlPanelWidth]() {
+        const int availableWidth = std::max(1, ui->mainSplitter->width());
+        ui->mainSplitter->setSizes(
+            {savedControlPanelWidth,
+             std::max(1, availableWidth - savedControlPanelWidth)});
+        connect(ui->mainSplitter, &QSplitter::splitterMoved,
+                this, [this](int, int) { scheduleSettingsPersistence(); });
+    });
+
+    const ApplicationDefaultSettings& defaults = AppSettings::defaults();
+    const AlignmentDefaultSettings alignment = AppSettings::alignmentOptions();
+    const ArrangementDefaultSettings arrangement = AppSettings::arrangementOptions();
+    const TrwsPamiDefaultSettings trwsPami = AppSettings::trwsPamiOptions();
+    const LeastSquaresDefaultSettings leastSquares = AppSettings::leastSquaresOptions();
+    const ImageMergeDefaultSettings imageMerge = AppSettings::imageMergeOptions();
+
+    pa_TF = trwsPami.localEnabled;
+    pa_num = trwsPami.localImageCount;
+    pa_auto_increment_TF = trwsPami.localAutoIncrement;
+    pa_increment = trwsPami.localImageCountIncrement;
+    pa_increment_count = trwsPami.localIncrementCount;
+    pa_radi = trwsPami.localSearchRadius;
+    pa_opti = trwsPami.localMaxIterations;
+    pa_itr = trwsPami.localMaxLoops;
+    all_TF = trwsPami.globalEnabled;
+    all_radi = trwsPami.globalSearchRadius;
+    all_opti = trwsPami.globalMaxIterations;
+    all_itr = trwsPami.globalMaxLoops;
+    leastSquaresSettings.regressionThreshold = leastSquares.regressionThreshold;
+    leastSquaresSettings.relativeThreshold = leastSquares.relativeThreshold;
+    leastSquaresSettings.absoluteThreshold = leastSquares.absoluteThreshold;
+    leastSquaresSettings.maxPairErrorForRelative =
+        leastSquares.maxPairErrorForRelative;
+    imageMergeSettings.mode = static_cast<ImageMergeMode>(imageMerge.mode);
+    defaultImageOpacity = defaults.canvas.selectedImageOpacityPercent;
+    imageHighlightColor = QColor(defaults.canvas.highlightColor);
+    configuredHorizontalImageCount = arrangement.horizontalImageCount;
+    configuredVerticalImageCount = arrangement.verticalImageCount;
+    orikaeshi = arrangement.zigzag;
+
+    ui->horizontalSlider->setValue(alignment.horizontalOverlapPercent);
+    ui->spinBox_2->setValue(alignment.horizontalOverlapPercent);
+    ui->horizontalSlider_2->setValue(alignment.verticalOverlapPercent);
+    ui->spinBox_3->setValue(alignment.verticalOverlapPercent);
+    ui->horizontalSlider_3->setValue(alignment.searchRangePercent);
+    ui->spinBox->setValue(alignment.searchRangePercent);
+    ui->cornerSelector->setUI(arrangement.direction);
+    ui->cornerSelector->setZigzagChecked(arrangement.zigzag);
+    orikaeshi = ui->cornerSelector->zigzagChecked();
+    ui->sliderOpacity1->setValue(defaultImageOpacity);
+    ui->spinOpacity1->setValue(defaultImageOpacity);
+    ui->checkBox->setChecked(defaults.canvas.layoutLocked);
+    ui->checkBox_2->setChecked(defaults.canvas.useCanvasAsSource);
+
+    // メニューバー左端の設定ボタンと、その右側のキャンパスメニュー。
+    applicationSettingsAction = ui->menubar->addAction(tr("設定"));
     connect(applicationSettingsAction, &QAction::triggered,
             this, &MainWindow::show_application_settings);
+    canvasMenu = ui->menubar->addMenu(tr("キャンパス"));
+    canvasBackgroundAction = canvasMenu->addAction(tr("背景色"));
+    connect(canvasBackgroundAction, &QAction::triggered,
+            this, &MainWindow::showCanvasBackgroundDialog);
 
     // 入力画像設定ボタン
     connect(ui->pushButton_1, &QPushButton::clicked, this, [this]() {
-        FileInputDialog dlg(this->input_files, this);
-
-        if (dlg.exec() == QDialog::Accepted) {
-            QStringList input_files_new = dlg.selectedFiles();
-
-            if (input_files_new != input_files)
-            {
-                // ファイルを読み込む
-                File_input(input_files, input_files_new);
-            }
+        if (!fileInputDialog) {
+            fileInputDialog = new FileInputDialog(input_files, this);
+            fileInputDialog->setAttribute(Qt::WA_DeleteOnClose);
+            fileInputDialog->setModal(false);
+            fileInputDialog->setWindowModality(Qt::NonModal);
+            trackDialogSize(fileInputDialog, QStringLiteral("fileInput"),
+                            QSize(800, 600));
+            connect(fileInputDialog, &QDialog::accepted, this, [this]() {
+                if (!fileInputDialog) {
+                    return;
+                }
+                const QStringList inputFilesNew = fileInputDialog->selectedFiles();
+                if (inputFilesNew != input_files) {
+                    File_input(input_files, inputFilesNew);
+                }
+            });
+            connect(fileInputDialog, &QObject::destroyed, this, [this]() {
+                fileInputDialog = nullptr;
+            });
         }
+        fileInputDialog->show();
+        fileInputDialog->raise();
+        fileInputDialog->activateWindow();
     });
 
     // 画像同士の重なり割合の設定
@@ -872,64 +991,64 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->spinBox_2, QOverload<int>::of(&QSpinBox::valueChanged),
             ui->horizontalSlider, &QSlider::setValue);
     connect(ui->spinBox_2, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this](int){ arrangeSettingsChanged(); });
+            this, [this](int){
+        arrangeSettingsChanged();
+        scheduleSettingsPersistence();
+    });
 
     connect(ui->horizontalSlider_2, &QSlider::valueChanged,
             ui->spinBox_3, &QSpinBox::setValue);
     connect(ui->spinBox_3, QOverload<int>::of(&QSpinBox::valueChanged),
             ui->horizontalSlider_2, &QSlider::setValue);
     connect(ui->spinBox_3, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this](int){ arrangeSettingsChanged(); });
+            this, [this](int){
+        arrangeSettingsChanged();
+        scheduleSettingsPersistence();
+    });
 
     connect(ui->horizontalSlider_3, &QSlider::valueChanged,
             ui->spinBox, &QSpinBox::setValue);
     connect(ui->spinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             ui->horizontalSlider_3, &QSlider::setValue);
     connect(ui->spinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this](int){ ui->checkBox_2->setChecked(false); });
-
-    ui->spinBox->setValue(15);
-    ui->horizontalSlider_3->setValue(15);
-    //ui->spinBox_2->setValue(25);
-    //ui->spinBox_3->setValue(25);
+            this, [this](int){
+        ui->checkBox_2->setChecked(false);
+        scheduleSettingsPersistence();
+    });
 
     // 配列指定エリアの設定
     connect(ui->cornerSelector, &CornerDirectionSelector::stateChanged,
             this, [this](int state) {
+                Q_UNUSED(state);
                 arrangeSettingsChanged();
+                scheduleSettingsPersistence();
             });
 
     connect(ui->cornerSelector, &CornerDirectionSelector::r_Changed,
             this, [this](int rows){
+                configuredVerticalImageCount = rows;
                 arrangeSettingsChanged();
+                scheduleSettingsPersistence();
             });
 
     connect(ui->cornerSelector, &CornerDirectionSelector::c_Changed,
             this, [this](int cols){
+                configuredHorizontalImageCount = cols;
                 arrangeSettingsChanged();
+                scheduleSettingsPersistence();
             });
 
-    // 折り返し方法の選択
-    ui->radioButton_3->setChecked(true);
-
-    connect(ui->radioButton_3, &QRadioButton::toggled, this, [this](bool checked){
-        if (checked) {
-            //qDebug() << "折り返し = ジグザグ";
-            orikaeshi = true;
-            arrangeSettingsChanged();
-        }
-    });
-
-    connect(ui->radioButton_4, &QRadioButton::toggled, this, [this](bool checked){
-        if (checked) {
-            //qDebug() << "折り返し = 一方向";
-            orikaeshi = false;
-            arrangeSettingsChanged();
-        }
+    connect(ui->cornerSelector, &CornerDirectionSelector::zigzagChanged,
+            this, [this](bool zigzag) {
+        orikaeshi = zigzag;
+        arrangeSettingsChanged();
+        scheduleSettingsPersistence();
     });
 
     connect(ui->graphicsView, &maincampus::zoomChanged,
             this, [this](int pct){ zoomLabel->setText(QString("%1%").arg(pct)); });
+    connect(ui->graphicsView, &maincampus::filesDropped,
+            this, &MainWindow::handleCanvasFilesDropped);
 
     scene = new QGraphicsScene(this);
     scene->installEventFilter(this);
@@ -965,6 +1084,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             this, &MainWindow::showCanvasHistoryDialog);
 
     // 拡大率表示
+    statusMessageLabel = new QLabel(this);
+    statusMessageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    statusBar()->setStyleSheet(QStringLiteral("QStatusBar::item { border: none; }"));
+    statusBar()->addWidget(statusMessageLabel, 1);
     zoomLabel = new QLabel(this);
     zoomLabel->setText("100%");
     statusBar()->addPermanentWidget(zoomLabel);
@@ -972,8 +1095,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // 透明度制御
     ui->sliderOpacity1->setRange(0, 100);
     ui->spinOpacity1->setRange(0, 100);
-    ui->sliderOpacity1->setValue(0);
-    ui->spinOpacity1->setValue(0);
+    ui->sliderOpacity1->setValue(defaultImageOpacity);
+    ui->spinOpacity1->setValue(defaultImageOpacity);
 
     // --- 同期：slider <-> spin（画像1）---
     connect(ui->sliderOpacity1, &QSlider::valueChanged,
@@ -989,21 +1112,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->sliderOpacity1->setEnabled(false);
     ui->spinOpacity1->setEnabled(false);
 
-    // 背景色を設定
-    ui->comboBox->clear();
-    ui->comboBox->addItems({"黒", "白"});
-
-    auto applyBg = [this](int index) {
-        ui->graphicsView->setBackgroundBrush(index == 0 ? Qt::black : Qt::white);
-    };
-
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &MainWindow::onSceneSelectionChanged);
-
-    connect(ui->comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, applyBg);
-
-    applyBg(ui->comboBox->currentIndex());
+    applyCanvasBackgroundSetting(AppSettings::canvasBackground());
 
     // 計算開始ボタン
     connect(ui->pushButton_Calc1, &QPushButton::clicked, this, &MainWindow::calc_iFFT);
@@ -1011,6 +1122,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // 計算完了通知を受け取る
     connect(&watcher, &QFutureWatcher<ifft_thread_output>::finished, this, &MainWindow::calc_finish_1);
     connect(&watcher_re, &QFutureWatcher<ifft_thread_output>::finished, this, &MainWindow::calc_finish_2);
+    connect(&watcher, &QFutureWatcher<ifft_thread_output>::progressValueChanged,
+            this, [this](int value) {
+        updateCalculationProgress(value, watcher.progressMaximum(),
+                                  tr("位置合わせを計算中"));
+    });
+    connect(&watcher_re, &QFutureWatcher<ifft_thread_output>::progressValueChanged,
+            this, [this](int value) {
+        updateCalculationProgress(value, watcher_re.progressMaximum(),
+                                  tr("不良箇所を再計算中"));
+    });
 
     // 画像作成ボタン
     connect(ui->pushButton_2, &QPushButton::clicked, this, &MainWindow::make_image);
@@ -1032,13 +1153,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->pushButton_3, &QPushButton::clicked, this, &MainWindow::calc_TRWS);
     connect(ui->pushButton_8, &QPushButton::clicked, this, &MainWindow::calc_least_squares);
 
-    // 未実装部分をenableしない
-    ui->radioButton_4->setEnabled(false);
+    // 未実装の一方向はCornerDirectionSelector内で常に無効化する。
     ui->pushButton_3->setEnabled(false);
     ui->pushButton_8->setEnabled(false);
 
     // 選択中の画像番号を表示
-    ui->label_9->setText("なし");
+    ui->label_9->setText(tr("なし"));
     ui->label_8->setEnabled(false);
     ui->label_9->setEnabled(false);
     ui->pushButton->setEnabled(false);
@@ -1047,10 +1167,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->label_4->setText("");
     ui->pushButton_9->setEnabled(false);
     ui->checkBox_2->setEnabled(true);
-    ui->checkBox_2->setChecked(false);
+    ui->checkBox_2->setChecked(defaults.canvas.useCanvasAsSource);
 
     // 画像を作成 finish通知
     connect(&image_make_Watcher, &QFutureWatcher<cv::Mat>::finished, this, [this]() {
+        if (calculationCancellationRequested() || image_make_Watcher.future().isCanceled()) {
+            imageMakeSourcePositions.clear();
+            ui->label_6->setText(tr("キャンセル"));
+            ui->pushButton_2->setEnabled(true);
+            ui->pushButton_11->setEnabled(true);
+            ui->pushButton_4->setEnabled(!output_img.empty());
+            finishCancelledCalculation(tr("画像作成をキャンセルしました。"));
+            return;
+        }
         cv::Mat result = image_make_Watcher.result();
         const bool sourceChanged =
             !samePositions(imageMakeSourcePositions, readScenePositions());
@@ -1060,11 +1189,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         output_img = result;
         imageMakeSourcePositions.clear();
         ui->label_6->setText(sourceChanged
-                                 ? "キャンパス更新・再作成が必要"
-                                 : (output_img.empty() ? "不良" : "完了"));
+                                 ? tr("キャンパス更新・再作成が必要")
+                                 : (output_img.empty() ? tr("不良") : tr("完了")));
         ui->pushButton_2->setEnabled(true);
         ui->pushButton_11->setEnabled(true);
         ui->pushButton_4->setEnabled(!output_img.empty());
+        hideCalculationProgressDialog();
         if (calc_finish_sig) {
             emit makeimageFinished();
         }
@@ -1084,6 +1214,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->pushButton_5, &QPushButton::clicked, this, &MainWindow::show_detail_opti);
 
     m_detailDialog = new detail_opti_dialog(this);
+    trackDialogSize(m_detailDialog, QStringLiteral("optimizationDetails"),
+                    QSize(1000, 560));
 
     vulkanScanWatcher = new QFutureWatcher<VulkanDeviceScanResult>(this);
     // タイマー発火前に設定画面を開いた場合も「未検出」ではなく待機中と表示する。
@@ -1099,10 +1231,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // イベントループ開始後にバックグラウンド検出し、起動時間へ影響させない。
     QTimer::singleShot(750, this, &MainWindow::startDelayedVulkanDetection);
+    posi_lock(ui->checkBox->isChecked());
 }
 
 MainWindow::~MainWindow()
 {
+    persistAlignmentSettings();
+    persistArrangementSettings();
+    persistControlPanelWidth();
+    AppSettings::setWindowSize(QStringLiteral("mainWindow"), size());
+    saveTrackedWindowSizes();
+
     // 終了時の queued signal が破棄中オブジェクトへ届くのを防ぐ
     disconnect(&watcher, nullptr, this, nullptr);
     disconnect(&watcher_re, nullptr, this, nullptr);
@@ -1129,6 +1268,12 @@ void MainWindow::show_application_settings()
     if (!applicationSettingsDialog) {
         applicationSettingsDialog = new ApplicationSettingsDialog(this);
         applicationSettingsDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+        trackDialogSize(applicationSettingsDialog,
+                        QStringLiteral("applicationSettings"),
+                        QSize(700, 440));
+        connect(applicationSettingsDialog,
+                &ApplicationSettingsDialog::resetRequested,
+                this, &MainWindow::handleSettingsReset);
     }
 
     if (vulkanDetectionInProgress) {
@@ -1139,6 +1284,139 @@ void MainWindow::show_application_settings()
     applicationSettingsDialog->show();
     applicationSettingsDialog->raise();
     applicationSettingsDialog->activateWindow();
+}
+
+void MainWindow::showCanvasBackgroundDialog()
+{
+    if (!canvasBackgroundDialog) {
+        canvasBackgroundDialog = new QDialog(this);
+        canvasBackgroundDialog->setWindowTitle(tr("背景色"));
+        canvasBackgroundDialog->setModal(false);
+        canvasBackgroundDialog->setWindowModality(Qt::NonModal);
+        trackDialogSize(canvasBackgroundDialog,
+                        QStringLiteral("canvasBackground"),
+                        QSize(580, 470));
+
+        auto* layout = new QVBoxLayout(canvasBackgroundDialog);
+        canvasBackgroundColorPicker =
+            new QColorDialog(canvasBackgroundColor, canvasBackgroundDialog);
+        canvasBackgroundColorPicker->setWindowFlags(Qt::Widget);
+        canvasBackgroundColorPicker->setOption(QColorDialog::NoButtons, true);
+        canvasNoColorCheck = new QCheckBox(
+            tr("無色（背景を塗りつぶさない）"), canvasBackgroundDialog);
+        connect(canvasNoColorCheck, &QCheckBox::toggled,
+                canvasBackgroundColorPicker, &QWidget::setDisabled);
+
+        layout->addWidget(canvasBackgroundColorPicker, 1);
+        layout->addWidget(canvasNoColorCheck);
+
+        auto* buttonBox = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+            canvasBackgroundDialog);
+        connect(buttonBox, &QDialogButtonBox::accepted, this, [this]() {
+            if (canvasNoColorCheck->isChecked()) {
+                applyCanvasBackgroundSetting(QStringLiteral("none"));
+                AppSettings::setCanvasBackground(QStringLiteral("none"));
+            } else {
+                const QColor selectedColor = canvasBackgroundColorPicker->currentColor();
+                if (selectedColor.isValid()) {
+                    const QString setting = selectedColor.name(QColor::HexArgb);
+                    applyCanvasBackgroundSetting(setting);
+                    AppSettings::setCanvasBackground(setting);
+                }
+            }
+            canvasBackgroundDialog->accept();
+        });
+        connect(buttonBox, &QDialogButtonBox::rejected,
+                canvasBackgroundDialog, &QDialog::reject);
+        layout->addWidget(buttonBox);
+    }
+
+    canvasBackgroundDialog->setWindowTitle(tr("背景色"));
+    canvasNoColorCheck->setText(tr("無色（背景を塗りつぶさない）"));
+    canvasNoColorCheck->setChecked(canvasBackgroundIsTransparent);
+    canvasBackgroundColorPicker->setCurrentColor(canvasBackgroundColor);
+    canvasBackgroundColorPicker->setEnabled(!canvasBackgroundIsTransparent);
+    canvasBackgroundDialog->show();
+    canvasBackgroundDialog->raise();
+    canvasBackgroundDialog->activateWindow();
+}
+
+void MainWindow::applyCanvasBackgroundSetting(const QString& setting)
+{
+    const QString normalized = setting.trimmed().toLower();
+    if (normalized == QStringLiteral("none")
+        || normalized == QStringLiteral("transparent")
+        || normalized == QStringLiteral("no-color")) {
+        canvasBackgroundIsTransparent = true;
+        ui->graphicsView->setBackgroundBrush(Qt::NoBrush);
+        return;
+    }
+
+    const QColor color(setting);
+    canvasBackgroundColor = color.isValid() ? color : QColor(Qt::black);
+    canvasBackgroundIsTransparent = false;
+    ui->graphicsView->setBackgroundBrush(canvasBackgroundColor);
+}
+
+void MainWindow::retranslateDynamicUi()
+{
+    setWindowTitle(QString("%1  v%2")
+                       .arg(QCoreApplication::applicationName(),
+                            QCoreApplication::applicationVersion()));
+    if (applicationSettingsAction) {
+        applicationSettingsAction->setText(tr("設定"));
+    }
+    if (canvasMenu) {
+        canvasMenu->setTitle(tr("キャンパス"));
+    }
+    if (canvasBackgroundAction) {
+        canvasBackgroundAction->setText(tr("背景色"));
+    }
+    if (canvasBackgroundDialog) {
+        canvasBackgroundDialog->setWindowTitle(tr("背景色"));
+    }
+    if (canvasNoColorCheck) {
+        canvasNoColorCheck->setText(tr("無色（背景を塗りつぶさない）"));
+    }
+    if (canvasHistoryDialog) {
+        canvasHistoryDialog->setWindowTitle(tr("変更履歴"));
+    }
+    if (canvasHistoryLegendLabels.size() == 3) {
+        canvasHistoryLegendLabels[0]->setText(tr("現在地"));
+        canvasHistoryLegendLabels[1]->setText(tr("位相相関結果"));
+        canvasHistoryLegendLabels[2]->setText(tr("最適化結果"));
+    }
+    if (canvasHistoryGraphWidget) {
+        canvasHistoryGraphWidget->update();
+    }
+    if (imageHighlightDialog) {
+        imageHighlightDialog->setWindowTitle(tr("画像ハイライト"));
+    }
+    if (imageHighlightIdLabel) {
+        imageHighlightIdLabel->setText(tr("画像ID"));
+    }
+    if (imageHighlightEdit) {
+        imageHighlightEdit->setPlaceholderText(tr("例: 2-6,8-10"));
+    }
+    if (imageHighlightColorButton) {
+        imageHighlightColorButton->setText(tr("色"));
+    }
+    if (imageHighlightApplyButton) {
+        imageHighlightApplyButton->setText(tr("ハイライト"));
+    }
+    if (imageHighlightClearButton) {
+        imageHighlightClearButton->setText(tr("クリア"));
+    }
+}
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+        retranslateDynamicUi();
+    }
 }
 
 void MainWindow::startDelayedVulkanDetection()
@@ -1165,7 +1443,7 @@ static int viewZoomPercent(const QGraphicsView *view)
 void MainWindow::File_input_UI()
 {
     ui->pushButton_1->setEnabled(false);
-    ui->pushButton_1->setText("ファイル読み込み中...");
+    ui->pushButton_1->setText(tr("ファイル読み込み中..."));
     ui->pushButton_1->repaint();
     QApplication::processEvents();
 }
@@ -1236,7 +1514,7 @@ void MainWindow::File_input_check(QStringList cli_paths)
     File_input(file_null,validFiles);
 
     ui->pushButton_1->setEnabled(true);
-    ui->pushButton_1->setText("入力画像");
+    ui->pushButton_1->setText(tr("入力画像"));
 
     emit fileInputFinished(); // 完了通知
 }
@@ -1282,17 +1560,91 @@ QStringList MainWindow::onSortUpFname(QStringList input_files)
     return input_files;
 };
 
+void MainWindow::handleCanvasFilesDropped(const QStringList& paths)
+{
+    if (isAlignmentOrOptimizationRunning()) {
+        if (statusMessageLabel) {
+            statusMessageLabel->setText(
+                tr("計算中は画像ファイルを追加できません。"));
+        }
+        return;
+    }
+
+    QStringList expandedFiles;
+    QSet<QString> seen;
+    for (const QString& path : paths) {
+        const QFileInfo info(path);
+        if (!info.exists()) {
+            continue;
+        }
+        if (info.isFile()) {
+            const QString absolutePath = info.absoluteFilePath();
+            if (!seen.contains(absolutePath)) {
+                seen.insert(absolutePath);
+                expandedFiles.push_back(absolutePath);
+            }
+            continue;
+        }
+        if (!info.isDir()) {
+            continue;
+        }
+
+        QDirIterator iterator(info.absoluteFilePath(), QDir::Files,
+                              QDirIterator::Subdirectories);
+        while (iterator.hasNext()) {
+            const QString absolutePath =
+                QFileInfo(iterator.next()).absoluteFilePath();
+            if (!seen.contains(absolutePath)) {
+                seen.insert(absolutePath);
+                expandedFiles.push_back(absolutePath);
+            }
+        }
+    }
+
+    expandedFiles = onSortUpFname(expandedFiles);
+    QStringList readableFiles;
+    readableFiles.reserve(expandedFiles.size());
+    for (const QString& path : std::as_const(expandedFiles)) {
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        if (!reader.read().isNull()) {
+            readableFiles.push_back(path);
+        }
+    }
+    if (readableFiles.isEmpty()) {
+        if (statusMessageLabel) {
+            statusMessageLabel->setText(tr("読み込める画像ファイルがありません。"));
+        }
+        return;
+    }
+
+    QStringList updatedFiles = input_files;
+    updatedFiles.append(readableFiles);
+    File_input(input_files, updatedFiles);
+    if (statusMessageLabel) {
+        statusMessageLabel->setText(
+            tr("%1 個の画像ファイルを追加しました。").arg(readableFiles.size()));
+    }
+}
+
 // 画像同士の重なりの目安を設定
 void MainWindow::set_over_value(int o_x, int o_y, int o_r)
 {
+    const bool previousSuppression = suppressSettingsPersistence;
+    suppressSettingsPersistence = true;
     ui->horizontalSlider->setValue(o_x);
     ui->horizontalSlider_2->setValue(o_y);
     ui->horizontalSlider_3->setValue(o_r);
+    suppressSettingsPersistence = previousSuppression;
 }
 
 // 画像の配列を設定
 void MainWindow::set_array_value(int ar, int arh, int arv)
 {
+    const bool previousSuppression = suppressSettingsPersistence;
+    suppressSettingsPersistence = true;
+    configuredHorizontalImageCount = std::max(0, arh);
+    configuredVerticalImageCount = std::max(0, arv);
     ui->cornerSelector->setUI(ar);
 
     const int n = input_files.size();
@@ -1311,16 +1663,26 @@ void MainWindow::set_array_value(int ar, int arh, int arv)
         }
         ui->cornerSelector->setRows(arv);
     }
+    suppressSettingsPersistence = previousSuppression;
 }
 
 // 折り返しを指定
 void MainWindow::set_zigzag_value(int g)
 {
-    if (g == 0) {
-        ui->radioButton_4->setChecked(true);
-    } else {
-        ui->radioButton_3->setChecked(true);
-    }
+    Q_UNUSED(g);
+    // 一方向は未実装のため、現時点では常にジグザグを使用する。
+    const bool previousSuppression = suppressSettingsPersistence;
+    suppressSettingsPersistence = true;
+    orikaeshi = true;
+    ui->cornerSelector->setZigzagChecked(true);
+    suppressSettingsPersistence = previousSuppression;
+}
+
+void MainWindow::set_canvas_state(bool layoutLocked, bool useCanvasAsSource)
+{
+    ui->checkBox_2->setChecked(useCanvasAsSource);
+    ui->checkBox->setChecked(layoutLocked);
+    posi_lock(layoutLocked);
 }
 
 // 最適化設定値
@@ -1375,11 +1737,9 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
     for (int i = 0; i < n_new; ++i) {
         QPixmap pix(paths_new[i]);
         if (pix.isNull()) {
-            QMessageBox::warning(
-                this,
-                tr("エラー"),
-                tr("%1枚目の画像の読み込みに失敗しました。\nファイル入力ウィザードから削除してください。").arg(i + 1)
-                );
+            showNonModalMessage(
+                QMessageBox::Warning, tr("エラー"),
+                tr("%1枚目の画像の読み込みに失敗しました。\nファイル入力ウィザードから削除してください。").arg(i + 1));
             return;
         }
         pix_new[i] = pix;
@@ -1455,12 +1815,26 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
         it->setZValue(i + 1);
     }
     input_files = paths_new;
+    const int requestedHorizontalImageCount = configuredHorizontalImageCount;
+    const int requestedVerticalImageCount = configuredVerticalImageCount;
+    const int requestedDirection = ui->cornerSelector->getStatus();
     ui->cornerSelector->setMax(input_files.size(),true);
-    toumeido.fill(0, input_files.size());
+    set_array_value(requestedDirection,
+                    requestedHorizontalImageCount,
+                    requestedVerticalImageCount);
+    ui->checkBox_2->setChecked(AppSettings::defaults().canvas.useCanvasAsSource);
+    toumeido.fill(defaultImageOpacity, input_files.size());
+    const qreal defaultOpacity = (100 - defaultImageOpacity) / 100.0;
+    for (QGraphicsPixmapItem* item : std::as_const(items)) {
+        if (item) {
+            item->setOpacity(defaultOpacity);
+        }
+    }
     if (input_files.isEmpty()) {
         ui->checkBox_2->setChecked(false);
     }
     ui->checkBox_2->setEnabled(true);
+    calc1FinishedBeforeCalculation = calc1_finished_state;
     calc1_finished_state = false;
     ui->pushButton_8->setEnabled(false);
     ui->label_4->setText("");
@@ -1598,7 +1972,7 @@ void MainWindow::invalidateCreatedImage()
     output_img.release();
     ui->label_6->clear();
     ui->pushButton_4->setEnabled(false);
-    ui->pushButton_4->setText("PNG エクスポート");
+    ui->pushButton_4->setText(tr("PNG エクスポート"));
 }
 
 void MainWindow::arrangeSettingsChanged()
@@ -1751,8 +2125,9 @@ void MainWindow::restoreCanvasHistoryNode(int nodeIndex)
     if (isAlignmentOrOptimizationRunning()) return;
     if (nodeIndex < 0 || nodeIndex >= canvasHistoryTree.size()) return;
     if (canvasHistoryTree[nodeIndex].positions.size() != items.size()) {
-        QMessageBox::warning(this, "変更履歴",
-                             "現在の画像枚数と異なる履歴のため、キャンパスへ反映できません。");
+        showNonModalMessage(
+            QMessageBox::Warning, tr("変更履歴"),
+            tr("現在の画像枚数と異なる履歴のため、キャンパスへ反映できません。"));
         return;
     }
 
@@ -1783,10 +2158,11 @@ void MainWindow::showCanvasHistoryDialog()
     }
 
     canvasHistoryDialog = new QDialog(this);
-    canvasHistoryDialog->setWindowTitle("変更履歴");
+    canvasHistoryDialog->setWindowTitle(tr("変更履歴"));
     canvasHistoryDialog->setModal(false);
     canvasHistoryDialog->setWindowModality(Qt::NonModal);
-    canvasHistoryDialog->resize(720, 250);
+    trackDialogSize(canvasHistoryDialog, QStringLiteral("canvasHistory"),
+                    QSize(720, 250));
 
     auto* rootLayout = new QVBoxLayout(canvasHistoryDialog);
     auto* graph = new CanvasHistoryGraphWidget(canvasHistoryDialog);
@@ -1830,14 +2206,15 @@ void MainWindow::showCanvasHistoryDialog()
                 .arg(color.blue()));
 
         auto* label = new QLabel(text, canvasHistoryDialog);
+        canvasHistoryLegendLabels.push_back(label);
         itemLayout->addWidget(swatch);
         itemLayout->addWidget(label);
         legendLayout->addLayout(itemLayout);
     };
 
-    addLegendItem("現在地", CanvasHistoryGraphWidget::currentMarkerColor(), true);
-    addLegendItem("位相相関結果", CanvasHistoryGraphWidget::phaseMarkerColor());
-    addLegendItem("最適化結果", CanvasHistoryGraphWidget::optimizationMarkerColor());
+    addLegendItem(tr("現在地"), CanvasHistoryGraphWidget::currentMarkerColor(), true);
+    addLegendItem(tr("位相相関結果"), CanvasHistoryGraphWidget::phaseMarkerColor());
+    addLegendItem(tr("最適化結果"), CanvasHistoryGraphWidget::optimizationMarkerColor());
     legendLayout->addStretch();
     rootLayout->addLayout(legendLayout);
 
@@ -1845,6 +2222,7 @@ void MainWindow::showCanvasHistoryDialog()
         canvasHistoryDialog = nullptr;
         canvasHistoryGraphWidget = nullptr;
         canvasHistoryScrollArea = nullptr;
+        canvasHistoryLegendLabels.clear();
     });
 
     canvasHistoryDialog->show();
@@ -1876,6 +2254,7 @@ void MainWindow::scrollCanvasHistoryToCurrent()
 bool MainWindow::isAlignmentOrOptimizationRunning() const
 {
     return watcher.isRunning() || watcher_re.isRunning() ||
+           image_make_Watcher.isRunning() ||
            trwsRunning || leastSquaresRunning ||
            (leastSquaresWatcher && leastSquaresWatcher->isRunning());
 }
@@ -1913,13 +2292,13 @@ QVector<int> MainWindow::parseImageIndexSpec(const QString& text, QString* error
     const QString trimmed = text.trimmed();
     if (items.isEmpty()) {
         if (errorMessage) {
-            *errorMessage = "ハイライトできる画像がありません。";
+            *errorMessage = tr("ハイライトできる画像がありません。");
         }
         return indices;
     }
     if (trimmed.isEmpty()) {
         if (errorMessage) {
-            *errorMessage = "画像番号を入力してください。";
+            *errorMessage = tr("画像番号を入力してください。");
         }
         return indices;
     }
@@ -1940,7 +2319,7 @@ QVector<int> MainWindow::parseImageIndexSpec(const QString& text, QString* error
             last = first;
             if (!ok) {
                 if (errorMessage) {
-                    *errorMessage = QString("画像番号の指定が不正です: %1").arg(token);
+                    *errorMessage = tr("画像番号の指定が不正です: %1").arg(token);
                 }
                 return {};
             }
@@ -1948,7 +2327,7 @@ QVector<int> MainWindow::parseImageIndexSpec(const QString& text, QString* error
             const QStringList parts = token.split('-', Qt::KeepEmptyParts);
             if (parts.size() != 2) {
                 if (errorMessage) {
-                    *errorMessage = QString("範囲指定が不正です: %1").arg(token);
+                    *errorMessage = tr("範囲指定が不正です: %1").arg(token);
                 }
                 return {};
             }
@@ -1959,7 +2338,7 @@ QVector<int> MainWindow::parseImageIndexSpec(const QString& text, QString* error
             last = parts[1].trimmed().toInt(&okLast);
             if (!okFirst || !okLast) {
                 if (errorMessage) {
-                    *errorMessage = QString("範囲指定が不正です: %1").arg(token);
+                    *errorMessage = tr("範囲指定が不正です: %1").arg(token);
                 }
                 return {};
             }
@@ -1968,14 +2347,14 @@ QVector<int> MainWindow::parseImageIndexSpec(const QString& text, QString* error
             }
         } else {
             if (errorMessage) {
-                *errorMessage = QString("範囲指定が不正です: %1").arg(token);
+                *errorMessage = tr("範囲指定が不正です: %1").arg(token);
             }
             return {};
         }
 
         if (first < 1 || last < 1 || first > maxIndex || last > maxIndex) {
             if (errorMessage) {
-                *errorMessage = QString("画像番号は 1-%1 の範囲で指定してください。").arg(maxIndex);
+                *errorMessage = tr("画像番号は 1-%1 の範囲で指定してください。").arg(maxIndex);
             }
             return {};
         }
@@ -1988,7 +2367,7 @@ QVector<int> MainWindow::parseImageIndexSpec(const QString& text, QString* error
     std::sort(indices.begin(), indices.end());
     indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
     if (indices.isEmpty() && errorMessage) {
-        *errorMessage = "ハイライト対象の画像がありません。";
+        *errorMessage = tr("ハイライト対象の画像がありません。");
     }
     return indices;
 }
@@ -1997,43 +2376,57 @@ void MainWindow::showImageHighlightDialog()
 {
     if (!imageHighlightDialog) {
         imageHighlightDialog = new QDialog(this);
-        imageHighlightDialog->setWindowTitle("画像ハイライト");
+        imageHighlightDialog->setWindowTitle(tr("画像ハイライト"));
         imageHighlightDialog->setModal(false);
         imageHighlightDialog->setWindowModality(Qt::NonModal);
-        imageHighlightDialog->resize(360, 110);
+        trackDialogSize(imageHighlightDialog,
+                        QStringLiteral("imageHighlight"), QSize(360, 110));
 
         auto* rootLayout = new QVBoxLayout(imageHighlightDialog);
         auto* inputLayout = new QHBoxLayout();
-        auto* label = new QLabel("画像ID", imageHighlightDialog);
+        imageHighlightIdLabel = new QLabel(tr("画像ID"), imageHighlightDialog);
         imageHighlightEdit = new QLineEdit(imageHighlightDialog);
-        imageHighlightEdit->setPlaceholderText("例: 2-6,8-10");
-        inputLayout->addWidget(label);
+        imageHighlightEdit->setPlaceholderText(tr("例: 2-6,8-10"));
+        inputLayout->addWidget(imageHighlightIdLabel);
         inputLayout->addWidget(imageHighlightEdit, 1);
         rootLayout->addLayout(inputLayout);
 
         auto* buttonLayout = new QHBoxLayout();
-        imageHighlightColorButton = new QPushButton("色", imageHighlightDialog);
-        auto* highlightButton = new QPushButton("ハイライト", imageHighlightDialog);
-        auto* clearButton = new QPushButton("クリア", imageHighlightDialog);
+        imageHighlightColorButton = new QPushButton(tr("色"), imageHighlightDialog);
+        imageHighlightApplyButton = new QPushButton(tr("ハイライト"), imageHighlightDialog);
+        imageHighlightClearButton = new QPushButton(tr("クリア"), imageHighlightDialog);
         buttonLayout->addWidget(imageHighlightColorButton);
         buttonLayout->addStretch();
-        buttonLayout->addWidget(highlightButton);
-        buttonLayout->addWidget(clearButton);
+        buttonLayout->addWidget(imageHighlightApplyButton);
+        buttonLayout->addWidget(imageHighlightClearButton);
         rootLayout->addLayout(buttonLayout);
 
         connect(imageHighlightColorButton, &QPushButton::clicked, this, [this]() {
-            const QColor color = QColorDialog::getColor(imageHighlightColor,
-                                                        imageHighlightDialog,
-                                                        "ハイライト色");
-            if (!color.isValid()) {
-                return;
-            }
-            imageHighlightColor = color;
-            updateImageHighlightColorButton();
+            auto* colorDialog = new QColorDialog(imageHighlightColor,
+                                                 imageHighlightDialog);
+            colorDialog->setWindowTitle(tr("ハイライト色"));
+            colorDialog->setAttribute(Qt::WA_DeleteOnClose);
+            colorDialog->setModal(false);
+            colorDialog->setWindowModality(Qt::NonModal);
+            trackDialogSize(colorDialog,
+                            QStringLiteral("imageHighlightColor"),
+                            QSize(600, 450));
+            imageHighlightColorButton->setEnabled(false);
+            connect(colorDialog, &QColorDialog::colorSelected, this,
+                    [this](const QColor& color) {
+                if (color.isValid()) {
+                    imageHighlightColor = color;
+                    updateImageHighlightColorButton();
+                }
+            });
+            connect(colorDialog, &QDialog::finished, this, [this]() {
+                if (imageHighlightColorButton) imageHighlightColorButton->setEnabled(true);
+            });
+            colorDialog->show();
         });
-        connect(highlightButton, &QPushButton::clicked,
+        connect(imageHighlightApplyButton, &QPushButton::clicked,
                 this, &MainWindow::applyImageHighlightsFromDialog);
-        connect(clearButton, &QPushButton::clicked, this, [this]() {
+        connect(imageHighlightClearButton, &QPushButton::clicked, this, [this]() {
             if (imageHighlightEdit) {
                 imageHighlightEdit->clear();
             }
@@ -2089,9 +2482,8 @@ void MainWindow::applyImageHighlightsFromDialog()
         QWidget* parentWidget = imageHighlightDialog
                                     ? static_cast<QWidget*>(imageHighlightDialog)
                                     : static_cast<QWidget*>(this);
-        QMessageBox::warning(parentWidget,
-                             "画像ハイライト",
-                             errorMessage);
+        showNonModalMessage(QMessageBox::Warning, tr("画像ハイライト"),
+                            errorMessage, parentWidget);
         return;
     }
 
@@ -2138,68 +2530,217 @@ void MainWindow::clearImageHighlights()
     clearImageHighlightRects();
 }
 
-void MainWindow::showOptimizationProgressDialog()
+void MainWindow::showCalculationProgressDialog(const QString& title,
+                                               const QString& computePath,
+                                               int maximum)
 {
-    if (!optimizationProgressDialog) {
-        optimizationProgressDialog = new QDialog(this);
-        optimizationProgressDialog->setWindowTitle("最適化計算");
-        optimizationProgressDialog->setModal(false);
-        optimizationProgressDialog->setWindowModality(Qt::NonModal);
-        optimizationProgressDialog->setFixedSize(320, 120);
+    if (!calculationProgressDialog) {
+        calculationProgressDialog = new QDialog(this);
+        calculationProgressDialog->setModal(false);
+        calculationProgressDialog->setWindowModality(Qt::NonModal);
+        calculationProgressDialog->setWindowFlag(Qt::WindowCloseButtonHint, false);
+        calculationProgressDialog->setMinimumWidth(360);
+        trackDialogSize(calculationProgressDialog,
+                        QStringLiteral("calculationProgress"),
+                        QSize(400, 170));
 
-        auto* layout = new QVBoxLayout(optimizationProgressDialog);
-        optimizationProgressLabel = new QLabel("準備中", optimizationProgressDialog);
-        optimizationProgressLabel->setAlignment(Qt::AlignCenter);
-        optimizationProgressBar = new QProgressBar(optimizationProgressDialog);
-        optimizationProgressBar->setRange(0, 100);
-        optimizationProgressBar->setValue(0);
-        layout->addWidget(optimizationProgressLabel);
-        layout->addWidget(optimizationProgressBar);
+        auto* layout = new QVBoxLayout(calculationProgressDialog);
+        calculationComputePathLabel = new QLabel(calculationProgressDialog);
+        calculationComputePathLabel->setAlignment(Qt::AlignCenter);
+        calculationProgressLabel = new QLabel(calculationProgressDialog);
+        calculationProgressLabel->setAlignment(Qt::AlignCenter);
+        calculationProgressBar = new QProgressBar(calculationProgressDialog);
+        calculationCancelButton = new QPushButton(calculationProgressDialog);
+        layout->addWidget(calculationComputePathLabel);
+        layout->addWidget(calculationProgressLabel);
+        layout->addWidget(calculationProgressBar);
+        layout->addWidget(calculationCancelButton, 0, Qt::AlignRight);
 
-        connect(optimizationProgressDialog, &QObject::destroyed, this, [this]() {
-            optimizationProgressDialog = nullptr;
-            optimizationProgressLabel = nullptr;
-            optimizationProgressBar = nullptr;
-        });
+        connect(calculationCancelButton, &QPushButton::clicked,
+                this, &MainWindow::cancelCurrentCalculation);
+        connect(calculationProgressDialog, &QDialog::rejected,
+                this, &MainWindow::cancelCurrentCalculation);
     }
 
-    optimizationProgressTimer.restart();
-    updateOptimizationProgress(0, 100, "準備中");
-    optimizationProgressDialog->show();
-    optimizationProgressDialog->raise();
+    calculationCancelRequested = std::make_shared<std::atomic_bool>(false);
+    setCalculationUiLocked(true);
+    calculationProgressDialog->setWindowTitle(title);
+    calculationComputePathLabel->setText(tr("計算パス: %1").arg(computePath));
+    calculationCancelButton->setText(tr("キャンセル"));
+    calculationCancelButton->setEnabled(true);
+    calculationProgressTimer.restart();
+    updateCalculationProgress(0, maximum, tr("準備中"));
+    calculationProgressDialog->show();
+    calculationProgressDialog->raise();
+    calculationProgressDialog->activateWindow();
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
-void MainWindow::updateOptimizationProgress(int value, int maximum, const QString& text)
+void MainWindow::updateCalculationProgress(int value, int maximum, const QString& text)
 {
-    if (!optimizationProgressDialog || !optimizationProgressLabel || !optimizationProgressBar) {
+    if (!calculationProgressDialog || !calculationProgressLabel
+        || !calculationProgressBar) {
+        return;
+    }
+
+    if (maximum <= 0) {
+        calculationProgressBar->setRange(0, 0);
+        calculationProgressLabel->setText(text);
         return;
     }
 
     maximum = std::max(1, maximum);
-    const int displayMaximum = std::max(1, maximum - 1);
-    const int displayValue = std::clamp(value, 0, displayMaximum);
-    optimizationProgressBar->setRange(0, displayMaximum);
-    optimizationProgressBar->setValue(displayValue);
+    const int displayValue = std::clamp(value, 0, maximum);
+    calculationProgressBar->setRange(0, maximum);
+    calculationProgressBar->setValue(displayValue);
 
-    const int percent = static_cast<int>(std::round((100.0 * displayValue) / displayMaximum));
-    QString remaining = "計算中";
-    if (displayValue > 0 && displayValue < displayMaximum && optimizationProgressTimer.isValid()) {
-        const double elapsed = static_cast<double>(optimizationProgressTimer.elapsed());
+    const int percent = static_cast<int>(std::round((100.0 * displayValue) / maximum));
+    QString remaining = tr("計算中");
+    if (displayValue > 0 && displayValue < maximum && calculationProgressTimer.isValid()) {
+        const double elapsed = static_cast<double>(calculationProgressTimer.elapsed());
         const qint64 remainingMs = static_cast<qint64>(
-            elapsed * (displayMaximum - displayValue) / displayValue);
-        remaining = "残り " + formatDuration(remainingMs);
-    } else if (displayValue >= displayMaximum) {
-        remaining = "完了処理中";
+            elapsed * (maximum - displayValue) / displayValue);
+        remaining = tr("残り %1").arg(formatDuration(remainingMs));
+    } else if (displayValue >= maximum) {
+        remaining = tr("完了処理中");
     }
 
-    optimizationProgressLabel->setText(QString("%1\n%2%  %3").arg(text).arg(percent).arg(remaining));
+    calculationProgressLabel->setText(
+        QString("%1\n%2%  %3").arg(text).arg(percent).arg(remaining));
 }
 
-void MainWindow::hideOptimizationProgressDialog()
+void MainWindow::hideCalculationProgressDialog()
 {
-    if (optimizationProgressDialog) {
-        optimizationProgressDialog->hide();
+    if (calculationProgressDialog) {
+        AppSettings::setWindowSize(QStringLiteral("calculationProgress"),
+                                   calculationProgressDialog->size());
+        calculationProgressDialog->hide();
     }
+    setCalculationUiLocked(false);
+    calculationCancelRequested.reset();
+}
+
+bool MainWindow::calculationCancellationRequested() const
+{
+    return calculationCancelRequested
+           && calculationCancelRequested->load(std::memory_order_relaxed);
+}
+
+void MainWindow::cancelCurrentCalculation()
+{
+    if (!calculationCancelRequested) {
+        return;
+    }
+    calculationCancelRequested->store(true, std::memory_order_relaxed);
+    if (calculationCancelButton) {
+        calculationCancelButton->setEnabled(false);
+    }
+    if (calculationProgressLabel) {
+        calculationProgressLabel->setText(tr("キャンセル中…"));
+    }
+
+    if (watcher.isRunning()) watcher.cancel();
+    if (watcher_re.isRunning()) watcher_re.cancel();
+    if (image_make_Watcher.isRunning()) image_make_Watcher.cancel();
+    if (trwsWatcher && trwsWatcher->isRunning()) trwsWatcher->cancel();
+    if (leastSquaresWatcher && leastSquaresWatcher->isRunning()) {
+        leastSquaresWatcher->cancel();
+    }
+}
+
+void MainWindow::setCalculationUiLocked(bool locked)
+{
+    if (calculationUiLocked == locked) {
+        return;
+    }
+
+    const QList<QWidget*> controls = {
+        ui->pushButton_1,
+        ui->checkBox,
+        ui->pushButton_7,
+        ui->groupBox_4,
+        ui->groupBox_3,
+        ui->groupBox_6
+    };
+
+    if (locked) {
+        calculationControlStates.clear();
+        for (QWidget* control : controls) {
+            calculationControlStates.insert(control, control->isEnabled());
+        }
+        layoutLockedBeforeCalculation = ui->checkBox->isChecked();
+        ui->checkBox->setChecked(true);
+        for (QWidget* control : controls) {
+            control->setEnabled(false);
+        }
+        if (applicationSettingsAction) {
+            applicationSettingsActionEnabledBeforeCalculation =
+                applicationSettingsAction->isEnabled();
+            applicationSettingsAction->setEnabled(false);
+        }
+        if (optimizationSettingsDialog) optimizationSettingsDialog->setEnabled(false);
+        if (leastSquaresSettingsDialog) leastSquaresSettingsDialog->setEnabled(false);
+        if (mergeSettingsDialog) mergeSettingsDialog->setEnabled(false);
+        if (applicationSettingsDialog) applicationSettingsDialog->setEnabled(false);
+        if (fileInputDialog) fileInputDialog->setEnabled(false);
+    } else {
+        ui->checkBox->setChecked(layoutLockedBeforeCalculation);
+        for (auto it = calculationControlStates.cbegin();
+             it != calculationControlStates.cend(); ++it) {
+            if (it.key()) {
+                it.key()->setEnabled(it.value());
+            }
+        }
+        calculationControlStates.clear();
+        if (applicationSettingsAction) {
+            applicationSettingsAction->setEnabled(
+                applicationSettingsActionEnabledBeforeCalculation);
+        }
+        if (optimizationSettingsDialog) optimizationSettingsDialog->setEnabled(true);
+        if (leastSquaresSettingsDialog) leastSquaresSettingsDialog->setEnabled(true);
+        if (mergeSettingsDialog) mergeSettingsDialog->setEnabled(true);
+        if (applicationSettingsDialog) applicationSettingsDialog->setEnabled(true);
+        if (fileInputDialog) fileInputDialog->setEnabled(true);
+    }
+    calculationUiLocked = locked;
+}
+
+void MainWindow::finishCancelledCalculation(const QString& resultText)
+{
+    if (statusMessageLabel) {
+        statusMessageLabel->setText(resultText);
+    }
+    hideCalculationProgressDialog();
+    refreshCanvasHistoryDialog();
+}
+
+void MainWindow::showNonModalMessage(QMessageBox::Icon icon,
+                                     const QString& title,
+                                     const QString& text,
+                                     QWidget* parent)
+{
+    auto* message = new QMessageBox(icon, title, text, QMessageBox::Ok,
+                                    parent ? parent : this);
+    message->setAttribute(Qt::WA_DeleteOnClose);
+    message->setModal(false);
+    message->setWindowModality(Qt::NonModal);
+    message->show();
+}
+
+QString MainWindow::selectedOptimizationComputePath() const
+{
+    const VulkanExecutionOptions options = AppSettings::vulkanOptions();
+    if (!options.enabled) {
+        return QStringLiteral("CPU");
+    }
+    if (MetalSsimEngine::isBuilt() && MetalSsimEngine::isAvailable()) {
+        return QStringLiteral("Metal");
+    }
+    if (VulkanSsimEngine::isBuilt()
+        && (vulkanDetectionInProgress || !vulkanScanResult.devices.isEmpty())) {
+        return QStringLiteral("Vulkan");
+    }
+    return QStringLiteral("CPU");
 }
 
 QString MainWindow::formatDuration(qint64 milliseconds) const
@@ -2209,9 +2750,9 @@ QString MainWindow::formatDuration(qint64 milliseconds) const
     const qint64 minutes = totalSeconds / 60;
     const qint64 seconds = totalSeconds % 60;
     if (minutes > 0) {
-        return QString("%1分%2秒").arg(minutes).arg(seconds, 2, 10, QLatin1Char('0'));
+        return tr("%1分%2秒").arg(minutes).arg(seconds, 2, 10, QLatin1Char('0'));
     }
-    return QString("%1秒").arg(seconds);
+    return tr("%1秒").arg(seconds);
 }
 
 int MainWindow::imageIndexAtScenePos(const QPointF& scenePos) const
@@ -2276,7 +2817,7 @@ void MainWindow::onSceneSelectionChanged()
         ui->label_2->setEnabled(false);
         ui->sliderOpacity1->setEnabled(false);
         ui->spinOpacity1->setEnabled(false);
-        ui->label_9->setText("なし");
+        ui->label_9->setText(tr("なし"));
         ui->label_8->setEnabled(false);
         ui->label_9->setEnabled(false);
         return;
@@ -2338,10 +2879,18 @@ static ifft_thread_output calc_oneshot(const ifft_thread_input& in)
     ifft_thread_output r;
     r.img1_id = in.img1_id;
     r.img2_id = in.img2_id;
+    if (workerCancellationRequested(in.cancelRequested)) {
+        r.cancelled = true;
+        return r;
+    }
 
     try {
         // 最大4回計算して安定するか確認する
         for (int l = 0; l < in.calc_loop_num; ++l) {
+            if (workerCancellationRequested(in.cancelRequested)) {
+                r.cancelled = true;
+                return r;
+            }
 
         // 重なり領域をcropして取り出す。
             return_struct2 r_st = Crop_2ImageTo2Image(in.input1, in.input2, in.px1, c_pos1, in.px2, c_posVs[l]);
@@ -2391,6 +2940,10 @@ static ifft_thread_output calc_oneshot(const ifft_thread_input& in)
         r.score = response;
         r.stability = stab_now;
         r.loop_num = count;
+        if (workerCancellationRequested(in.cancelRequested)) {
+            r.cancelled = true;
+            return r;
+        }
         r.ssim = SSIM_calc_oneshot(SSIM_TaskInput{in.input1,in.input2,in.px1,QPoint(0,0),in.px2,QPoint(x_r,y_r),0,0});
         return r;
     } catch (const cv::Exception&) {
@@ -2417,16 +2970,20 @@ static ifft_thread_output calc_oneshot(const ifft_thread_input& in)
 // iFFTを別スレッドで開始
 void MainWindow::calc_iFFT()
 {
-    if (watcher.isRunning()) return;
+    if (isAlignmentOrOptimizationRunning()) return;
 
     // 画像があるか判定
     const int n = input_files.size();
     if (n <= 1) {
-        QMessageBox::warning(this, "計算", "2枚以上の画像を入力してください。");
+        showNonModalMessage(QMessageBox::Warning, tr("計算"),
+                            tr("2枚以上の画像を入力してください。"));
         return;
     }
 
-    ui->label_5->setText("計算中");
+    showCalculationProgressDialog(tr("位置合わせ（位相相関法）"),
+                                  QStringLiteral("CPU"));
+    ui->label_5->clear();
+    calc1FinishedBeforeCalculation = calc1_finished_state;
     calc1_finished_state = false;
     leastSquaresDetails.clear();
     ui->checkBox->setChecked(true);
@@ -2475,8 +3032,10 @@ void MainWindow::calc_iFFT()
             inputs[i].pos1 = poss[i];
             inputs[i].pos2 = poss[i + 1];
             inputs[i].calc_loop_num = calc_loop_num;
+            inputs[i].cancelRequested = calculationCancelRequested;
         }
 
+        updateCalculationProgress(0, inputs.size(), tr("位置合わせを計算中"));
         QFuture<ifft_thread_output> future = QtConcurrent::mapped(inputs, calc_oneshot);
         watcher.setFuture(future);
         refreshCanvasHistoryDialog();
@@ -2540,7 +3099,11 @@ void MainWindow::calc_iFFT()
             inputs[i].calc_loop_num = calc_loop_num;
         }
     }
+    for (ifft_thread_input& input : inputs) {
+        input.cancelRequested = calculationCancelRequested;
+    }
     // 並列計算開始
+    updateCalculationProgress(0, inputs.size(), tr("位置合わせを計算中"));
     QFuture<ifft_thread_output> future = QtConcurrent::mapped(inputs, calc_oneshot);
     // 監視開始
     watcher.setFuture(future);
@@ -2790,7 +3353,11 @@ void MainWindow::calc_iFFT_rerun()
             }
         }
     }
+    for (ifft_thread_input& input : inputs) {
+        input.cancelRequested = calculationCancelRequested;
+    }
     // 並列計算開始
+    updateCalculationProgress(0, inputs.size(), tr("不良箇所を再計算中"));
     QFuture<ifft_thread_output> future = QtConcurrent::mapped(inputs, calc_oneshot);
     // 監視開始
     watcher_re.setFuture(future);
@@ -2800,10 +3367,31 @@ void MainWindow::calc_iFFT_rerun()
 void MainWindow::calc_finish_1()
 {
     calc_results = watcher.future().results();
+    const bool cancelled = calculationCancellationRequested()
+                           || watcher.future().isCanceled()
+                           || std::any_of(calc_results.cbegin(), calc_results.cend(),
+                                          [](const ifft_thread_output& r) {
+        return r.cancelled;
+    });
+    if (cancelled) {
+        calc_results.clear();
+        calc1_finished_state = calc1FinishedBeforeCalculation;
+        ui->label_5->setText(tr("キャンセル"));
+        ui->pushButton_Calc1->setEnabled(true);
+        ui->pushButton_4->setEnabled(!output_img.empty());
+        ui->pushButton_2->setEnabled(calc1_finished_state);
+        ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+        ui->pushButton_8->setEnabled(calc1_finished_state && input_files.size() > 1);
+        ui->pushButton_6->setEnabled(true);
+        ui->pushButton_10->setEnabled(true);
+        ui->pushButton_11->setEnabled(true);
+        finishCancelledCalculation(tr("位置合わせ計算をキャンセルしました。"));
+        return;
+    }
     const bool has_calc_error = std::any_of(calc_results.cbegin(), calc_results.cend(),
                                             [](const ifft_thread_output& r){ return r.calc_error; });
     if (has_calc_error) {
-        ui->label_5->setText("計算失敗");
+        ui->label_5->setText(tr("計算失敗"));
         output_img.release();
         ui->pushButton_Calc1->setEnabled(true);
         ui->pushButton->setEnabled(false);
@@ -2819,6 +3407,7 @@ void MainWindow::calc_finish_1()
         ui->pushButton_11->setEnabled(true);
         refreshCanvasHistoryDialog();
         ui->label_6->setText("");
+        hideCalculationProgressDialog();
         return;
     }
     int n = input_files.size();
@@ -3037,16 +3626,17 @@ void MainWindow::calc_finish_1()
 
     int overR = ui->horizontalSlider_3->value(); // 探索範囲
     if (!sceneSource && countF_calc >= 1 && overR >= re_step) { // 再計算の実行
-        ui->label_5->setText("不良箇所を再計算中");
+        ui->label_5->clear();
+        updateCalculationProgress(0, 0, tr("不良箇所を再計算中"));
         calc_iFFT_rerun();
         return;
     }
 
     if (countF == 0) {
-        ui->label_5->setText("良好");
+        ui->label_5->setText(tr("良好"));
         ryoukou = true;
     } else {
-        ui->label_5->setText(QString::number(countF) + " ヶ所不良");
+        ui->label_5->setText(tr("%1 ヶ所不良").arg(countF));
         ryoukou = false;
     }
 
@@ -3117,6 +3707,7 @@ void MainWindow::calc_finish_1()
     ui->pushButton_10->setEnabled(true);
     ui->pushButton_11->setEnabled(true);
 
+    hideCalculationProgressDialog();
     if (calc_finish_sig && ryoukou) {
         if (cal_opti) {
             calc_TRWS();
@@ -3129,10 +3720,31 @@ void MainWindow::calc_finish_1()
 void MainWindow::calc_finish_2()
 {
     calc_results_re = watcher_re.future().results();
+    const bool cancelled = calculationCancellationRequested()
+                           || watcher_re.future().isCanceled()
+                           || std::any_of(calc_results_re.cbegin(), calc_results_re.cend(),
+                                          [](const ifft_thread_output& r) {
+        return r.cancelled;
+    });
+    if (cancelled) {
+        calc_results_re.clear();
+        calc1_finished_state = calc1FinishedBeforeCalculation;
+        ui->label_5->setText(tr("キャンセル"));
+        ui->pushButton_Calc1->setEnabled(true);
+        ui->pushButton_4->setEnabled(!output_img.empty());
+        ui->pushButton_2->setEnabled(calc1_finished_state);
+        ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+        ui->pushButton_8->setEnabled(calc1_finished_state && input_files.size() > 1);
+        ui->pushButton_6->setEnabled(true);
+        ui->pushButton_10->setEnabled(true);
+        ui->pushButton_11->setEnabled(true);
+        finishCancelledCalculation(tr("位置合わせ計算をキャンセルしました。"));
+        return;
+    }
     const bool has_calc_error = std::any_of(calc_results_re.cbegin(), calc_results_re.cend(),
                                             [](const ifft_thread_output& r){ return r.calc_error; });
     if (has_calc_error) {
-        ui->label_5->setText("計算失敗");
+        ui->label_5->setText(tr("計算失敗"));
         output_img.release();
         ui->pushButton_Calc1->setEnabled(true);
         ui->pushButton->setEnabled(false);
@@ -3148,6 +3760,7 @@ void MainWindow::calc_finish_2()
         ui->pushButton_10->setEnabled(true);
         ui->pushButton_11->setEnabled(true);
         refreshCanvasHistoryDialog();
+        hideCalculationProgressDialog();
         return;
     }
 
@@ -3476,10 +4089,10 @@ void MainWindow::calc_finish_2()
     }
 
     if (countF == 0) {
-        ui->label_5->setText("良好");
+        ui->label_5->setText(tr("良好"));
         ryoukou = true;
     } else {
-        ui->label_5->setText(QString::number(countF) + " ヶ所不良");
+        ui->label_5->setText(tr("%1 ヶ所不良").arg(countF));
         ryoukou = false;
     }
 
@@ -3548,6 +4161,7 @@ void MainWindow::calc_finish_2()
     ui->checkBox_2->setEnabled(true);
     refreshCanvasHistoryDialog();
 
+    hideCalculationProgressDialog();
     if (calc_finish_sig && ryoukou) {
         if (cal_opti) {
             calc_TRWS();
@@ -3555,7 +4169,6 @@ void MainWindow::calc_finish_2()
             emit calcFinished();
         }
     }
-
 }
 
 void MainWindow::png_export() {
@@ -3564,7 +4177,8 @@ void MainWindow::png_export() {
         cli_exp_image();
     } else {
         if (input_files.size() == 0 || output_img.empty()) {
-            QMessageBox::warning(this, "PNG export", "出力できる画像がありません。");
+            showNonModalMessage(QMessageBox::Warning, tr("PNG export"),
+                                tr("出力できる画像がありません。"));
             return;
         }
 
@@ -3574,20 +4188,42 @@ void MainWindow::png_export() {
         QString newName = "stitched_" + fi.completeBaseName() + ".png";
         QString initialPath = dir.filePath(newName);
 
-        QString newpath = QFileDialog::getSaveFileName(
-            this,
-            "Save File",
-            initialPath,
-            "PNG Image (*.png);;All Files (*.*)"
-            );
+        auto* dialog = new QFileDialog(this, tr("保存"), initialPath,
+                                       tr("PNG画像 (*.png);;すべてのファイル (*)"));
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setAcceptMode(QFileDialog::AcceptSave);
+        dialog->setFileMode(QFileDialog::AnyFile);
+        dialog->setDefaultSuffix(QStringLiteral("png"));
+        dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+        dialog->setOption(QFileDialog::DontConfirmOverwrite, true);
+        dialog->setModal(false);
+        dialog->setWindowModality(Qt::NonModal);
+        trackDialogSize(dialog, QStringLiteral("pngExport"), QSize(900, 600));
+        connect(dialog, &QFileDialog::fileSelected,
+                this, [this](const QString& path) {
+            if (!QFileInfo::exists(path)) {
+                savePngToPath(path);
+                return;
+            }
 
-        if (newpath.isEmpty()) // キャンセルが押された場合
-        {
-            return;
-        }
-
-        QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
-        qimg.save(newpath, "PNG");
+            auto* confirmation = new QMessageBox(
+                QMessageBox::Warning, tr("上書き確認"),
+                tr("ファイルは既に存在します。上書きしますか？\n%1")
+                    .arg(QDir::toNativeSeparators(path)),
+                QMessageBox::Yes | QMessageBox::No, this);
+            confirmation->setAttribute(Qt::WA_DeleteOnClose);
+            confirmation->setDefaultButton(QMessageBox::No);
+            confirmation->setModal(false);
+            confirmation->setWindowModality(Qt::NonModal);
+            connect(confirmation, &QDialog::finished, this,
+                    [this, path](int result) {
+                if (result == QMessageBox::Yes) {
+                    savePngToPath(path);
+                }
+            });
+            confirmation->show();
+        });
+        dialog->show();
     }
 }
 
@@ -3598,26 +4234,38 @@ void MainWindow::set_output_path(QString out_p)
 
 void MainWindow::cli_exp_image() {
     if (input_files.size() == 0 || output_img.empty()) {
-        QMessageBox::warning(this, "PNG export", "出力できる画像がありません。");
+        showNonModalMessage(QMessageBox::Warning, tr("PNG export"),
+                            tr("出力できる画像がありません。"));
         return;
     }
-    QImage qimg(output_img.data, output_img.cols, output_img.rows, output_img.step, QImage::Format_ARGB32);
-
-    bool ok = qimg.save(output_file, "PNG");
-    if (!ok) {
-        QMessageBox::critical(this, "保存エラー",
-                              "画像を保存できませんでした。\n"
-                              "出力先パスを確認してください。\n\n"
-                              "Path: " + output_file);
-        return;
-    }
-
-    ui->pushButton_4->setText("PNG エクスポート: 完了");
-
-    if (closeTFm) {
+    if (savePngToPath(output_file) && closeTFm) {
         QCoreApplication::quit();
     }
+}
 
+bool MainWindow::savePngToPath(const QString& path)
+{
+    if (path.isEmpty() || output_img.empty()) {
+        return false;
+    }
+
+    const QImage image(output_img.data, output_img.cols, output_img.rows,
+                       output_img.step, QImage::Format_ARGB32);
+    if (!image.save(path, "PNG")) {
+        showNonModalMessage(
+            QMessageBox::Critical, tr("保存エラー"),
+            tr("画像を保存できませんでした。\n"
+               "出力先パスを確認してください。\n\n"
+               "Path: %1").arg(path));
+        return false;
+    }
+
+    if (statusMessageLabel) {
+        statusMessageLabel->setText(
+            tr("PNGの保存が完了しました: %1")
+                .arg(QDir::toNativeSeparators(path)));
+    }
+    return true;
 }
 
 
@@ -4086,17 +4734,22 @@ void MainWindow::show_detail()
 {
     const int n = input_files.size();
     if (n == 0) {
-        QMessageBox::warning(this, "詳細", "表示できるデータがありません。");
+        showNonModalMessage(QMessageBox::Warning, tr("詳細"),
+                            tr("表示できるデータがありません。"));
         return;
     }
     if (n < 2 || calc_results.size() < (n - 1) || checkTF.size() < (n - 1)) {
-        QMessageBox::warning(this, "詳細", "表示するデータがありません。先に位置合わせ計算を実行してください。");
+        showNonModalMessage(
+            QMessageBox::Warning, tr("詳細"),
+            tr("表示するデータがありません。先に位置合わせ計算を実行してください。"));
         return;
     }
 
     auto* model = new QStandardItemModel(this);
     model->setColumnCount(7);
-    model->setHorizontalHeaderLabels({"画像1","画像2","計算回数","安定性","位相相関スコア","SSIM", "品質"});
+    model->setHorizontalHeaderLabels({tr("画像1"), tr("画像2"), tr("計算回数"),
+                                      tr("安定性"), tr("位相相関スコア"),
+                                      tr("SSIM"), tr("品質")});
     model->setRowCount(n-1);
 
     for (int i = 0; i < n-1; ++i) {
@@ -4122,8 +4775,11 @@ void MainWindow::show_detail()
         // 安定性（表示は文字列、ソート用は 0/1）
         {
             bool st = calc_results[i].stability;
-            auto* it = new QStandardItem(st ? QStringLiteral("安定") : QStringLiteral("不安定"));
+            auto* it = new QStandardItem(st ? tr("安定") : tr("不安定"));
             it->setData(st ? 1 : 0, Qt::UserRole);
+            it->setData(st ? QStringLiteral("stable")
+                           : QStringLiteral("unstable"),
+                        Qt::UserRole + 1);
             model->setItem(i, 3, it);
         }
         // 位相相関スコア（double）
@@ -4143,8 +4799,11 @@ void MainWindow::show_detail()
         // 品質（表示は文字列、ソート用は 0/1）
         {
             bool ok = checkTF[i];
-            auto* it = new QStandardItem(ok ? QStringLiteral("良") : QStringLiteral("不良"));
+            auto* it = new QStandardItem(ok ? tr("良") : tr("不良"));
             it->setData(ok ? 1 : 0, Qt::UserRole);
+            it->setData(ok ? QStringLiteral("good")
+                           : QStringLiteral("bad"),
+                        Qt::UserRole + 1);
             model->setItem(i, 6, it);
         }
     }
@@ -4152,23 +4811,26 @@ void MainWindow::show_detail()
     dlg->setAttribute(Qt::WA_DeleteOnClose);
     dlg->setModel(model);
     dlg->setModal(false);
+    trackDialogSize(dlg, QStringLiteral("alignmentDetails"),
+                    QSize(620, 600));
     dlg->show();
 }
 
 void MainWindow::show_detail_least_squares()
 {
     if (leastSquaresDetails.empty()) {
-        QMessageBox::warning(this, "最小二乗法の詳細",
-                             "表示するデータがありません。先に位置合わせ最適化（最小二乗法）を実行してください。");
+        showNonModalMessage(
+            QMessageBox::Warning, tr("最小二乗法の詳細"),
+            tr("表示するデータがありません。先に位置合わせ最適化（最小二乗法）を実行してください。"));
         return;
     }
 
     auto* model = new QStandardItemModel(this);
     model->setColumnCount(13);
     model->setHorizontalHeaderLabels({
-        "画像1", "画像2", "状態", "計算回数", "安定性",
-        "位相相関スコア", "測定SSIM", "計算後SSIM",
-        "測定dx", "測定dy", "最適dx", "最適dy", "残差"
+        tr("画像1"), tr("画像2"), tr("状態"), tr("計算回数"), tr("安定性"),
+        tr("位相相関スコア"), tr("測定SSIM"), tr("計算後SSIM"),
+        tr("測定dx"), tr("測定dy"), tr("最適dx"), tr("最適dy"), tr("残差")
     });
     model->setRowCount(static_cast<int>(leastSquaresDetails.size()));
 
@@ -4182,9 +4844,13 @@ void MainWindow::show_detail_least_squares()
         item->setData(value, Qt::UserRole);
         model->setItem(row, col, item);
     };
-    auto setText = [model](int row, int col, const QString& text) {
+    auto setText = [model](int row, int col, const QString& text,
+                           const QString& translationKey = QString()) {
         auto* item = new QStandardItem(text);
         item->setData(text, Qt::UserRole);
+        if (!translationKey.isEmpty()) {
+            item->setData(translationKey, Qt::UserRole + 1);
+        }
         model->setItem(row, col, item);
     };
 
@@ -4192,9 +4858,21 @@ void MainWindow::show_detail_least_squares()
         const LeastSquaresPairDetail& detail = leastSquaresDetails[row];
         setInt(row, 0, detail.img1 + 1);
         setInt(row, 1, detail.img2 + 1);
-        setText(row, 2, detail.status);
+        QString statusKey;
+        if (detail.status == tr("計算失敗")) {
+            statusKey = QStringLiteral("calculation_failed");
+        } else if (detail.status == tr("しきい値未満")) {
+            statusKey = QStringLiteral("below_threshold");
+        } else if (detail.status == tr("採用")) {
+            statusKey = QStringLiteral("accepted");
+        } else if (detail.status == tr("除外")) {
+            statusKey = QStringLiteral("excluded");
+        }
+        setText(row, 2, detail.status, statusKey);
         setInt(row, 3, detail.loop_num);
-        setText(row, 4, detail.stability ? QStringLiteral("安定") : QStringLiteral("不安定"));
+        setText(row, 4, detail.stability ? tr("安定") : tr("不安定"),
+                detail.stability ? QStringLiteral("stable")
+                                 : QStringLiteral("unstable"));
         setDouble(row, 5, detail.score);
         setDouble(row, 6, detail.measuredSsim);
         setDouble(row, 7, detail.optimizedSsim);
@@ -4209,6 +4887,8 @@ void MainWindow::show_detail_least_squares()
     dlg->setAttribute(Qt::WA_DeleteOnClose);
     dlg->setModel(model);
     dlg->setModal(false);
+    trackDialogSize(dlg, QStringLiteral("leastSquaresDetails"),
+                    QSize(620, 600));
     dlg->show();
 }
 
@@ -4218,12 +4898,10 @@ void MainWindow::posi_lock(bool checked) {
 
     if (checked) {
         ui->pushButton_1->setEnabled(false);
-        ui->groupBox_2->setEnabled(false);
         ui->groupBox_3->setEnabled(false);
         ui->groupBox_4->setEnabled(false);
     } else {
         ui->pushButton_1->setEnabled(true);
-        ui->groupBox_2->setEnabled(true);
         ui->groupBox_3->setEnabled(true);
         ui->groupBox_4->setEnabled(true);
     }
@@ -4231,25 +4909,34 @@ void MainWindow::posi_lock(bool checked) {
 
 void MainWindow::make_image()
 {
+    if (isAlignmentOrOptimizationRunning()) {
+        return;
+    }
+
     const int n = input_files.size();
     if (n == 0) {
-        QMessageBox::warning(this, "画像作成", "出力できる画像がありません。");
+        showNonModalMessage(QMessageBox::Warning, tr("画像作成"),
+                            tr("出力できる画像がありません。"));
         return;
     }
 
     const QVector<QPoint> canvasPositions = readScenePositions();
 
     if (imgs.size() != n || canvasPositions.size() != n) {
-        QMessageBox::warning(this, "画像作成", "先に位置合わせ計算を実行してください。");
+        showNonModalMessage(QMessageBox::Warning, tr("画像作成"),
+                            tr("先に位置合わせ計算を実行してください。"));
         return;
     }
+
+    readMergeSettingsDialog();
+    showCalculationProgressDialog(tr("画像作成"), QStringLiteral("CPU"));
 
     poss = canvasPositions;
     pos_all = canvasPositions;
     imageMakeSourcePositions = canvasPositions;
     invalidateCreatedImage();
 
-    ui->label_6->setText("作成中");
+    ui->label_6->clear();
     ui->pushButton_2->setEnabled(false);
     ui->pushButton_11->setEnabled(false);
 
@@ -4257,10 +4944,11 @@ void MainWindow::make_image()
     auto imgs_copy = imgs;
     const auto poss_copy = canvasPositions;
     const ImageMergeMode mergeMode = imageMergeSettings.mode;
+    const auto cancellation = calculationCancelRequested;
 
     // ワーカースレッドで実行
-    image_make_Watcher.setFuture(QtConcurrent::run([imgs_copy, poss_copy, mergeMode]() -> cv::Mat {
-        return mergeImagesForExport(imgs_copy, poss_copy, mergeMode);
+    image_make_Watcher.setFuture(QtConcurrent::run([imgs_copy, poss_copy, mergeMode, cancellation]() -> cv::Mat {
+        return mergeImagesForExport(imgs_copy, poss_copy, mergeMode, cancellation);
     }));
 }
 
@@ -4814,6 +5502,8 @@ struct PairResult
     std::vector<double> costs;
 };
 
+std::mutex ssimGpuDispatchMutex;
+
 inline bool defaultMayOverlap(const QSize& res1, const QPoint& pos1,
                               const QSize& res2, const QPoint& pos2,
                               int radi)
@@ -4841,11 +5531,15 @@ PairResult processOnePair(
     const std::vector<ShiftDelta>& deltas,
     int K,
     int radi,
-    const VulkanExecutionOptions& vulkanOptions)
+    const VulkanExecutionOptions& vulkanOptions,
+    const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     PairResult result;
     result.i = task.i;
     result.j = task.j;
+    if (workerCancellationRequested(cancellation)) {
+        return result;
+    }
 
     const cv::Mat& img1 = imgs[task.i];
     const cv::Mat& img2 = imgs[task.j];
@@ -4867,8 +5561,9 @@ PairResult processOnePair(
         return (dy + 2 * radi) * diffSpan + (dx + 2 * radi);
     };
 
-    // Vulkanでは元画像2枚を一度だけ転送し、全相対変位のROIを一括処理する。
-    if (vulkanOptions.enabled && VulkanSsimEngine::isBuilt()) {
+    // GPUでは元画像2枚を一度だけ転送し、全相対変位のROIを一括処理する。
+    if (vulkanOptions.enabled
+        && (MetalSsimEngine::isAvailable() || VulkanSsimEngine::isBuilt())) {
         std::vector<ShiftDelta> uniqueDeltas;
         std::vector<int> uniqueCostIndices;
         std::vector<int> taskIndexForCost(diffSpan * diffSpan, -1);
@@ -4887,6 +5582,9 @@ PairResult processOnePair(
         }
 
         try {
+            if (workerCancellationRequested(cancellation)) {
+                return result;
+            }
             const cv::Mat1b mask1 = ImageUtils::alphaMaskFromBGRA(img1, 0.5);
             const cv::Mat1b mask2 = ImageUtils::alphaMaskFromBGRA(img2, 0.5);
             std::vector<VulkanSsimRoiPair> rois(uniqueDeltas.size());
@@ -4898,31 +5596,71 @@ PairResult processOnePair(
                                          rois[i].first, rois[i].second);
             }
 
-            const VulkanSsimBatchResult gpuResult = VulkanSsimEngine::computeBatch(
-                img1, img2, rois, vulkanOptions.deviceKey,
-                vulkanOptions.ignoreVramLimit);
-            if (gpuResult.succeeded() && gpuResult.scores.size() == uniqueDeltas.size()) {
-                static std::atomic_bool vulkanSuccessLogged{false};
-                if (!vulkanSuccessLogged.exchange(true)) {
-                    qInfo().noquote()
-                        << QString("Vulkan SSIM enabled (VRAM estimate: %1 MiB, limit: %2 MiB)")
-                               .arg(gpuResult.requiredVramBytes / (1024 * 1024))
-                               .arg(gpuResult.vramLimitBytes / (1024 * 1024));
+            std::unique_lock<std::mutex> gpuDispatchLock(ssimGpuDispatchMutex);
+            if (workerCancellationRequested(cancellation)) {
+                return result;
+            }
+
+            bool gpuCompleted = false;
+            if (MetalSsimEngine::isAvailable()) {
+                const MetalSsimBatchResult metalResult = MetalSsimEngine::computeBatch(
+                    img1, img2, rois, vulkanOptions.ignoreVramLimit);
+                if (metalResult.succeeded()
+                    && metalResult.scores.size() == uniqueDeltas.size()) {
+                    static std::atomic_bool metalSuccessLogged{false};
+                    if (!metalSuccessLogged.exchange(true)) {
+                        qInfo().noquote()
+                            << QString("Metal SSIM enabled (memory estimate: %1 MiB, limit: %2 MiB)")
+                                   .arg(metalResult.requiredVramBytes / (1024 * 1024))
+                                   .arg(metalResult.vramLimitBytes / (1024 * 1024));
+                    }
+                    for (size_t i = 0; i < uniqueDeltas.size(); ++i) {
+                        const double s_v = metalResult.scores[i];
+                        const double ratio = (1.0 - s_v) / s_v;
+                        const int costIndex = uniqueCostIndices[i];
+                        cachedCosts[costIndex] = ratio * ratio / 81.0;
+                        computed[costIndex] = 1;
+                    }
+                    gpuCompleted = true;
+                } else if (metalResult.status == MetalSsimStatus::VramLimitExceeded) {
+                    static std::atomic_bool metalVramFallbackLogged{false};
+                    if (!metalVramFallbackLogged.exchange(true)) {
+                        qInfo().noquote()
+                            << QString("Metal SSIM CPU fallback: memory estimate %1 MiB exceeds limit %2 MiB")
+                                   .arg(metalResult.requiredVramBytes / (1024 * 1024))
+                                   .arg(metalResult.vramLimitBytes / (1024 * 1024));
+                    }
                 }
-                for (size_t i = 0; i < uniqueDeltas.size(); ++i) {
-                    const double s_v = gpuResult.scores[i];
-                    const double ratio = (1.0 - s_v) / s_v;
-                    const int costIndex = uniqueCostIndices[i];
-                    cachedCosts[costIndex] = ratio * ratio / 81.0;
-                    computed[costIndex] = 1;
-                }
-            } else if (gpuResult.status == VulkanSsimStatus::VramLimitExceeded) {
-                static std::atomic_bool vramFallbackLogged{false};
-                if (!vramFallbackLogged.exchange(true)) {
-                    qInfo().noquote()
-                        << QString("Vulkan SSIM CPU fallback: VRAM estimate %1 MiB exceeds limit %2 MiB")
-                               .arg(gpuResult.requiredVramBytes / (1024 * 1024))
-                               .arg(gpuResult.vramLimitBytes / (1024 * 1024));
+            }
+
+            if (!gpuCompleted && VulkanSsimEngine::isBuilt()) {
+                const VulkanSsimBatchResult gpuResult = VulkanSsimEngine::computeBatch(
+                    img1, img2, rois, vulkanOptions.deviceKey,
+                    vulkanOptions.ignoreVramLimit);
+                if (gpuResult.succeeded()
+                    && gpuResult.scores.size() == uniqueDeltas.size()) {
+                    static std::atomic_bool vulkanSuccessLogged{false};
+                    if (!vulkanSuccessLogged.exchange(true)) {
+                        qInfo().noquote()
+                            << QString("Vulkan SSIM enabled (VRAM estimate: %1 MiB, limit: %2 MiB)")
+                                   .arg(gpuResult.requiredVramBytes / (1024 * 1024))
+                                   .arg(gpuResult.vramLimitBytes / (1024 * 1024));
+                    }
+                    for (size_t i = 0; i < uniqueDeltas.size(); ++i) {
+                        const double s_v = gpuResult.scores[i];
+                        const double ratio = (1.0 - s_v) / s_v;
+                        const int costIndex = uniqueCostIndices[i];
+                        cachedCosts[costIndex] = ratio * ratio / 81.0;
+                        computed[costIndex] = 1;
+                    }
+                } else if (gpuResult.status == VulkanSsimStatus::VramLimitExceeded) {
+                    static std::atomic_bool vramFallbackLogged{false};
+                    if (!vramFallbackLogged.exchange(true)) {
+                        qInfo().noquote()
+                            << QString("Vulkan SSIM CPU fallback: VRAM estimate %1 MiB exceeds limit %2 MiB")
+                                   .arg(gpuResult.requiredVramBytes / (1024 * 1024))
+                                   .arg(gpuResult.vramLimitBytes / (1024 * 1024));
+                    }
                 }
             }
         } catch (const cv::Exception&) {
@@ -4933,6 +5671,9 @@ PairResult processOnePair(
     }
 
     for (int idx = 0; idx < K * K; ++idx) {
+        if (workerCancellationRequested(cancellation)) {
+            return result;
+        }
         const auto& d = deltas[idx];
         const int ci = diffIndex(d.dx, d.dy);
 
@@ -4970,13 +5711,15 @@ struct LeastSquaresEdge
 
 bool solveDenseLinearSystem(std::vector<std::vector<double>> A,
                             std::vector<double> b,
-                            std::vector<double>& x)
+                            std::vector<double>& x,
+                            const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     const int n = static_cast<int>(b.size());
     x.assign(n, 0.0);
     if (n == 0) return true;
 
     for (int col = 0; col < n; ++col) {
+        if (workerCancellationRequested(cancellation)) return false;
         int pivot = col;
         double pivotAbs = std::abs(A[col][col]);
         for (int row = col + 1; row < n; ++row) {
@@ -5020,7 +5763,8 @@ bool solveDenseLinearSystem(std::vector<std::vector<double>> A,
 bool solveLeastSquaresPositions(const QVector<QPoint>& initial,
                                 const std::vector<LeastSquaresEdge>& edges,
                                 QVector<QPointF>& optimized,
-                                QString& error)
+                                QString& error,
+                                const std::shared_ptr<std::atomic_bool>& cancellation)
 {
     const int N = initial.size();
     optimized.resize(N);
@@ -5037,6 +5781,7 @@ bool solveLeastSquaresPositions(const QVector<QPoint>& initial,
 
     QVector<bool> visited(N, false);
     for (int start = 0; start < N; ++start) {
+        if (workerCancellationRequested(cancellation)) return false;
         if (visited[start] || adjacency[start].isEmpty()) {
             continue;
         }
@@ -5046,6 +5791,7 @@ bool solveLeastSquaresPositions(const QVector<QPoint>& initial,
         stack.push_back(start);
         visited[start] = true;
         while (!stack.isEmpty()) {
+            if (workerCancellationRequested(cancellation)) return false;
             const int node = stack.back();
             stack.pop_back();
             component.push_back(node);
@@ -5115,9 +5861,10 @@ bool solveLeastSquaresPositions(const QVector<QPoint>& initial,
 
         std::vector<double> x;
         std::vector<double> y;
-        if (!solveDenseLinearSystem(A, bx, x) ||
-            !solveDenseLinearSystem(A, by, y)) {
-            error = "最小二乗法の線形方程式を解けませんでした。";
+        if (!solveDenseLinearSystem(A, bx, x, cancellation) ||
+            !solveDenseLinearSystem(A, by, y, cancellation)) {
+            error = QCoreApplication::translate(
+                "MainWindow", "最小二乗法の線形方程式を解けませんでした。");
             return false;
         }
 
@@ -5172,12 +5919,14 @@ void MainWindow::calc_least_squares()
 
     const int n = input_files.size();
     if (n <= 1) {
-        QMessageBox::warning(this, "最小二乗法", "2枚以上の画像を入力してください。");
+        showNonModalMessage(QMessageBox::Warning, tr("最小二乗法"),
+                            tr("2枚以上の画像を入力してください。"));
         return;
     }
 
+    readLeastSquaresSettingsDialog();
     leastSquaresRunning = true;
-    ui->label_4->setText("計算中");
+    ui->label_4->clear();
     ui->pushButton_9->setEnabled(false);
     leastSquaresDetails.clear();
 
@@ -5191,7 +5940,8 @@ void MainWindow::calc_least_squares()
     ui->pushButton_11->setEnabled(false);
     ui->checkBox_2->setEnabled(false);
     refreshCanvasHistoryDialog();
-    showOptimizationProgressDialog();
+    showCalculationProgressDialog(tr("位置合わせ最適化（最小二乗法）"),
+                                  QStringLiteral("CPU"));
 
     ui->checkBox->setChecked(true);
     ui->checkBox->setEnabled(false);
@@ -5213,9 +5963,16 @@ void MainWindow::calc_least_squares()
     input.poss = poss;
     input.calc_loop_num = calc_loop_num;
     input.settings = leastSquaresSettings;
-    input.progressCallback = [this](int value, int maximum, const QString& text) {
-        QMetaObject::invokeMethod(this, [this, value, maximum, text]() {
-            updateOptimizationProgress(value, maximum, text);
+    input.cancelRequested = calculationCancelRequested;
+    const auto leastSquaresCalculation = input.cancelRequested;
+    input.progressCallback = [this, leastSquaresCalculation](
+                                 int value, int maximum, const QString& text) {
+        QMetaObject::invokeMethod(this, [this, leastSquaresCalculation,
+                                         value, maximum, text]() {
+            if (calculationCancelRequested != leastSquaresCalculation) {
+                return;
+            }
+            updateCalculationProgress(value, maximum, text);
         }, Qt::QueuedConnection);
     };
 
@@ -5230,6 +5987,21 @@ void MainWindow::calc_least_squares()
 void MainWindow::calc_least_squares_finish()
 {
     const CalcLeastSquaresOutput out = leastSquaresWatcher->result();
+    if (out.cancelled || calculationCancellationRequested()
+        || leastSquaresWatcher->future().isCanceled()) {
+        ui->label_4->setText(tr("キャンセル"));
+        ui->pushButton_Calc1->setEnabled(true);
+        ui->pushButton_4->setEnabled(!output_img.empty());
+        ui->pushButton_2->setEnabled(calc1_finished_state);
+        ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+        ui->pushButton_8->setEnabled(calc1_finished_state && input_files.size() > 1);
+        ui->pushButton_6->setEnabled(true);
+        ui->pushButton_10->setEnabled(true);
+        ui->pushButton_11->setEnabled(true);
+        leastSquaresRunning = false;
+        finishCancelledCalculation(tr("最小二乗最適化をキャンセルしました。"));
+        return;
+    }
     leastSquaresDetails = out.details;
     ui->pushButton_9->setEnabled(!leastSquaresDetails.empty());
     if (out.err.empty()) {
@@ -5240,12 +6012,13 @@ void MainWindow::calc_least_squares_finish()
         }
         syncPossFromScene();
         recordCanvasHistory(CanvasHistoryMarkerOptimization);
-        ui->label_4->setText(QString("最小SSIM:%1")
+        ui->label_4->setText(tr("最小SSIM:%1")
                                  .arg(out.minSsim, 0, 'f', 3));
         ui->pushButton_2->setEnabled(true);
     } else {
-        ui->label_4->setText("不良");
-        QMessageBox::warning(this, "最小二乗法", QString::fromStdString(out.err));
+        ui->label_4->setText(tr("不良"));
+        showNonModalMessage(QMessageBox::Warning, tr("最小二乗法"),
+                            QString::fromStdString(out.err));
         ui->pushButton_2->setEnabled(poss.size() == items.size() && !poss.isEmpty());
     }
 
@@ -5261,7 +6034,7 @@ void MainWindow::calc_least_squares_finish()
     applySceneMoveMode(!ui->checkBox->isChecked());
 
     leastSquaresRunning = false;
-    hideOptimizationProgressDialog();
+    hideCalculationProgressDialog();
     refreshCanvasHistoryDialog();
 }
 
@@ -5270,8 +6043,15 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     CalcLeastSquaresOutput ret;
     ret.poss = in.poss;
     const int N = in.poss.size();
+    auto cancelled = [&]() {
+        return workerCancellationRequested(in.cancelRequested);
+    };
+    if (cancelled()) {
+        ret.cancelled = true;
+        return ret;
+    }
     if (N <= 1) {
-        ret.err = "2枚以上の画像が必要です。";
+        ret.err = tr("2枚以上の画像が必要です。").toStdString();
         return ret;
     }
 
@@ -5284,6 +6064,10 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     std::vector<PairTask> pairTasks;
     pairTasks.reserve(N * (N - 1) / 2);
     for (int i = 0; i < N; ++i) {
+        if (cancelled()) {
+            ret.cancelled = true;
+            return ret;
+        }
         for (int j = i + 1; j < N; ++j) {
             if (defaultMayOverlap(in.res_all[i], in.poss[i],
                                   in.res_all[j], in.poss[j], 0)) {
@@ -5293,12 +6077,12 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     }
 
     if (pairTasks.empty()) {
-        ret.err = "キャンパス座標上で重なる画像ペアがありません。";
+        ret.err = tr("キャンパス座標上で重なる画像ペアがありません。").toStdString();
         return ret;
     }
 
     const int progressMaximum = static_cast<int>(pairTasks.size()) + 1;
-    reportProgress(0, progressMaximum, "重なりペアを計算中");
+    reportProgress(0, progressMaximum, tr("重なりペアを計算中"));
 
     QVector<PairTask> taskVec = QVector<PairTask>(pairTasks.begin(), pairTasks.end());
     QVector<ifft_thread_output> pairResults = QtConcurrent::blockingMapped<QVector<ifft_thread_output>>(
@@ -5314,12 +6098,22 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
             input.pos1 = in.poss[task.i];
             input.pos2 = in.poss[task.j];
             input.calc_loop_num = in.calc_loop_num;
+            input.cancelRequested = in.cancelRequested;
             return calc_oneshot(input);
         });
+
+    if (cancelled()) {
+        ret.cancelled = true;
+        return ret;
+    }
 
     std::vector<LeastSquaresEdge> edges;
     edges.reserve(pairResults.size());
     for (const ifft_thread_output& result : std::as_const(pairResults)) {
+        if (cancelled()) {
+            ret.cancelled = true;
+            return ret;
+        }
         if (result.calc_error) {
             continue;
         }
@@ -5337,7 +6131,7 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     }
 
     if (edges.empty()) {
-        ret.err = "しきい値を満たす相関ペアがありません。";
+        ret.err = tr("しきい値を満たす相関ペアがありません。").toStdString();
         return ret;
     }
 
@@ -5349,7 +6143,16 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     do {
         redo = false;
         QString solveError;
-        if (!solveLeastSquaresPositions(in.poss, edges, optimized, solveError)) {
+        if (cancelled()) {
+            ret.cancelled = true;
+            return ret;
+        }
+        if (!solveLeastSquaresPositions(in.poss, edges, optimized, solveError,
+                                        in.cancelRequested)) {
+            if (cancelled()) {
+                ret.cancelled = true;
+                return ret;
+            }
             ret.err = solveError.toStdString();
             return ret;
         }
@@ -5378,7 +6181,7 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
             redo = true;
             reportProgress(std::min(removedPairs, static_cast<int>(pairTasks.size())),
                            progressMaximum,
-                           QString("外れリンクを除去中 (%1)").arg(removedPairs));
+                           tr("外れリンクを除去中 (%1)").arg(removedPairs));
         }
     } while (redo);
 
@@ -5401,6 +6204,10 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     ret.details.clear();
     ret.details.reserve(pairResults.size());
     for (const ifft_thread_output& result : std::as_const(pairResults)) {
+        if (cancelled()) {
+            ret.cancelled = true;
+            return ret;
+        }
         LeastSquaresPairDetail detail;
         detail.img1 = result.img1_id;
         detail.img2 = result.img2_id;
@@ -5420,13 +6227,13 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
         }
 
         if (result.calc_error) {
-            detail.status = "計算失敗";
+            detail.status = tr("計算失敗");
         } else if (!matchedEdge) {
-            detail.status = "しきい値未満";
+            detail.status = tr("しきい値未満");
         } else if (matchedEdge->active) {
-            detail.status = "採用";
+            detail.status = tr("採用");
         } else {
-            detail.status = "除外";
+            detail.status = tr("除外");
         }
 
         if (matchedEdge) {
@@ -5461,7 +6268,7 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
     ret.err = "";
 
     reportProgress(progressMaximum, progressMaximum,
-                   QString("最小二乗最適化完了  採用:%1  除外:%2")
+                   tr("最小二乗最適化完了  採用:%1  除外:%2")
                        .arg(ret.acceptedPairs)
                        .arg(ret.removedPairs));
     return ret;
@@ -5469,11 +6276,19 @@ CalcLeastSquaresOutput MainWindow::calc_least_squares_core(CalcLeastSquaresInput
 
 void MainWindow::calc_TRWS()
 {
-    if (trwsRunning) {
+    if (isAlignmentOrOptimizationRunning()) {
         return; // 二重起動防止
     }
+    readOptimizationSettingsDialog();
+    if (!pa_TF && !all_TF) {
+        ui->pushButton_3->setEnabled(false);
+        showNonModalMessage(
+            QMessageBox::Warning, tr("最適化計算"),
+            tr("部分最適化または全体最適化を有効にしてください。"));
+        return;
+    }
     trwsRunning = true;
-    ui->label_12->setText("計算中");
+    ui->label_12->clear();
 
     ui->pushButton_Calc1->setEnabled(false);
     ui->pushButton_3->setEnabled(false);
@@ -5486,7 +6301,8 @@ void MainWindow::calc_TRWS()
     ui->pushButton_11->setEnabled(false);
     ui->checkBox_2->setEnabled(false);
     refreshCanvasHistoryDialog();
-    showOptimizationProgressDialog();
+    showCalculationProgressDialog(tr("位置合わせ最適化（TRW-S-PAMI）"),
+                                  selectedOptimizationComputePath());
 
     ui->checkBox->setChecked(true);
     ui->checkBox->setEnabled(false);
@@ -5511,9 +6327,16 @@ void MainWindow::calc_TRWS()
     input.all_opti = all_opti;
     input.all_itr = all_itr;
     input.vulkan = AppSettings::vulkanOptions();
-    input.progressCallback = [this](int value, int maximum, const QString& text) {
-        QMetaObject::invokeMethod(this, [this, value, maximum, text]() {
-            updateOptimizationProgress(value, maximum, text);
+    input.cancelRequested = calculationCancelRequested;
+    const auto trwsCalculation = input.cancelRequested;
+    input.progressCallback = [this, trwsCalculation](
+                                 int value, int maximum, const QString& text) {
+        QMetaObject::invokeMethod(this, [this, trwsCalculation,
+                                         value, maximum, text]() {
+            if (calculationCancelRequested != trwsCalculation) {
+                return;
+            }
+            updateCalculationProgress(value, maximum, text);
         }, Qt::QueuedConnection);
     };
 
@@ -5529,8 +6352,24 @@ void MainWindow::calc_TRWS_finish()
 {
 
     const CalcTRWSoutput out = trwsWatcher->result();
-    if (out.err.empty()) {
-        ui->label_12->setText("完了");
+    if (out.cancelled || calculationCancellationRequested()
+        || trwsWatcher->future().isCanceled()) {
+        ui->label_12->setText(tr("キャンセル"));
+        ui->pushButton_Calc1->setEnabled(true);
+        ui->pushButton_4->setEnabled(!output_img.empty());
+        ui->pushButton_2->setEnabled(true);
+        ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+        ui->pushButton_8->setEnabled(calc1_finished_state && input_files.size() > 1);
+        ui->pushButton_5->setEnabled(calc2_finished_state);
+        ui->pushButton_6->setEnabled(true);
+        ui->pushButton_10->setEnabled(true);
+        ui->pushButton_11->setEnabled(true);
+        trwsRunning = false;
+        finishCancelledCalculation(tr("TRW-S-PAMI最適化をキャンセルしました。"));
+        return;
+    }
+    if (out.err.empty() && !out.detail.empty()) {
+        ui->label_12->setText(tr("完了"));
         poss = out.poss;
         const int N = poss.size();
 
@@ -5547,7 +6386,7 @@ void MainWindow::calc_TRWS_finish()
         }// else {
         //    ui->label_12->setText("一部不良");
         //}
-        ui->label_12->setText(QString("最小SSIM:%1")
+        ui->label_12->setText(tr("最小SSIM:%1")
                                  .arg(out.detail[odn-1].minSSIM, 0, 'f', 3));
 
         // UI更新
@@ -5561,8 +6400,11 @@ void MainWindow::calc_TRWS_finish()
             emit calcFinished();
         }
     } else {
-        ui->label_12->setText("不良");
-        QMessageBox::warning(this, "最適化計算", QString::fromStdString(out.err));
+        ui->label_12->setText(tr("不良"));
+        showNonModalMessage(QMessageBox::Warning, tr("最適化計算"),
+                            out.err.empty()
+                                ? tr("最適化結果を取得できませんでした。")
+                                : QString::fromStdString(out.err));
 
     }
     ui->pushButton_Calc1->setEnabled(true);
@@ -5586,7 +6428,7 @@ void MainWindow::calc_TRWS_finish()
     }
     */
     trwsRunning = false;
-    hideOptimizationProgressDialog();
+    hideCalculationProgressDialog();
     refreshCanvasHistoryDialog();
 
 
@@ -5595,6 +6437,13 @@ void MainWindow::calc_TRWS_finish()
 CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 {
     CalcTRWSoutput ret;
+    auto cancelled = [&]() {
+        return workerCancellationRequested(in.cancelRequested);
+    };
+    if (cancelled()) {
+        ret.cancelled = true;
+        return ret;
+    }
     const int N = in.poss.size();
     QVector<QPoint> in_poss = in.poss;
     int progressValue = 0;
@@ -5608,13 +6457,16 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
         progressValue = std::min(progressMaximum, progressValue + 1);
         reportProgress(progressValue, progressMaximum, text);
     };
-    reportProgress(0, 1, "準備中");
+    reportProgress(0, 1, tr("準備中"));
 
     // 部分最適化
-    bool skipWholeOptimization = false;
     if (in.pa_TF) {
         const int localPassCount = in.pa_auto_increment_TF ? in.pa_increment_count + 1 : 1;
         for (int localPass = 0; localPass < localPassCount; ++localPass) {
+        if (cancelled()) {
+            ret.cancelled = true;
+            return ret;
+        }
         const int targetImageCount = in.pa_num + localPass * in.pa_increment;
 
         // edgeを計算
@@ -5673,7 +6525,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             progressValue + static_cast<int>(imgId_list.size()) * (in.pa_itr + 1) +
                 (in.all_TF ? in.all_itr + 1 : 0));
         reportProgress(progressValue, progressMaximum,
-                       QString("局所最適化を準備中 (%1枚)").arg(targetImageCount));
+                       tr("局所最適化を準備中 (%1枚)").arg(targetImageCount));
 
         const int Kp = ((in.pa_radi * 2) + 1) * ((in.pa_radi * 2) + 1);
 
@@ -5699,8 +6551,11 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
         }
 
         //qDebug() << "calc lists";
-        bool allLocalLoopsConverged = true;
         for (PairTask p : imgId_list) {
+            if (cancelled()) {
+                ret.cancelled = true;
+                return ret;
+            }
             //qDebug() << p.i << p.j;
             out_detail det;
             // edgeを抽出
@@ -5717,6 +6572,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             if (task_now.size() > 0) {
                 int whi = 0;
                 while (whi < in.pa_itr) {
+                    if (cancelled()) {
+                        ret.cancelled = true;
+                        return ret;
+                    }
                     whi++;
                     det.loop = whi;
                     // コスト計算用関数を作成
@@ -5724,7 +6583,8 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
                     auto mapFunc = [&](const PairTask& t) -> PairResult {
                         return processOnePair(t, in.imgs, in.res_all, in_poss,
-                                              deltasp, Kp, in.pa_radi, in.vulkan);
+                                              deltasp, Kp, in.pa_radi, in.vulkan,
+                                              in.cancelRequested);
                     };
                     auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
                         if (r.valid) {
@@ -5733,6 +6593,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
                     };
                     QVector<PairResult> results = QtConcurrent::blockingMappedReduced<QVector<PairResult>>(
                             task_now, mapFunc, reduceFunc, QtConcurrent::OrderedReduce);
+                    if (cancelled()) {
+                        ret.cancelled = true;
+                        return ret;
+                    }
 
                     std::vector<std::pair<int,int>> edges;
                     std::vector<std::vector<double>> pairCosts;
@@ -5755,6 +6619,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
                     opts.maxIter = in.pa_opti;
                     opts.tol = 1e-8;
                     opts.stallIters = 10;
+                    opts.shouldCancel = cancelled;
                     std::vector<std::vector<double>> unaryCosts(Np, std::vector<double>(Kp, 0.0));
                     int fixedLabel = -1;
                     for (int l = 0; l < Kp; ++l) {
@@ -5774,6 +6639,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
                     TRWS solver(Np, Kp, unaryCosts, edges, pairCosts, order, opts);
                     TRWSResult result = solver.run();
+                    if (result.cancelled || cancelled()) {
+                        ret.cancelled = true;
+                        return ret;
+                    }
 
                     // 結果を表示
                     det.itr = result.iterations;
@@ -5791,7 +6660,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
                     int xsum = std::count_if(xs_result.begin(), xs_result.end(),[](int x) { return x != 0; });
                     int ysum = std::count_if(ys_result.begin(), ys_result.end(),[](int x) { return x != 0; });
-                    advanceProgress(QString("局所最適化 %1-%2")
+                    advanceProgress(tr("局所最適化 %1-%2")
                                         .arg(p.i + 1)
                                         .arg(p.j + 1));
                     if (xsum + ysum == 0) {
@@ -5869,6 +6738,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             QVector<SsimEvalResult> results = QtConcurrent::blockingMapped<QVector<SsimEvalResult>>(
                 taskVec,
                 [&](const PairTask& ts) -> SsimEvalResult {
+                    if (cancelled()) return SsimEvalResult{ts.i, ts.j, 0.0};
                     double s_v = SSIM_calc_oneshot(
                         SSIM_TaskInput{
                             in.imgs[ts.i], in.imgs[ts.j],
@@ -5880,6 +6750,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
                     return SsimEvalResult{ts.i, ts.j, s_v};
                 }
                 );
+            if (cancelled()) {
+                ret.cancelled = true;
+                return ret;
+            }
 
             int ts_count = 0;
             double ssim_min = 1.0;
@@ -5904,25 +6778,18 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             ret.detail.push_back(det);
             ret.log.push_back(lo);
             ret.poss = in_poss;
-            if (!det.shuusoku) {
-                allLocalLoopsConverged = false;
-            }
-            advanceProgress(QString("局所最適化 SSIM %1-%2")
+            advanceProgress(tr("局所最適化 SSIM %1-%2")
                                 .arg(p.i + 1)
                                 .arg(p.j + 1));
-        }
-        if (in.pa_auto_increment_TF && !allLocalLoopsConverged) {
-            skipWholeOptimization = true;
-            break;
         }
         }
     }
 
     // 全体最適化
-    if (in.all_TF && !skipWholeOptimization) {
+    if (in.all_TF) {
         if (!in.pa_TF) {
             progressMaximum = std::max(1, in.all_itr + 1);
-            reportProgress(progressValue, progressMaximum, "全体最適化を準備中");
+            reportProgress(progressValue, progressMaximum, tr("全体最適化を準備中"));
         }
 
         const int K = ((in.all_radi * 2) + 1) * ((in.all_radi * 2) + 1);
@@ -5956,6 +6823,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
         int witr = 0;
         while (witr < in.all_itr) {
+            if (cancelled()) {
+                ret.cancelled = true;
+                return ret;
+            }
             witr++;
             det.loop = witr;
             // 対象ペアを先に列挙
@@ -6000,7 +6871,8 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
             auto mapFunc = [&](const PairTask& t) -> PairResult {
                 return processOnePair(t, in.imgs, in.res_all, in_poss,
-                                      deltas, K, in.all_radi, in.vulkan);
+                                      deltas, K, in.all_radi, in.vulkan,
+                                      in.cancelRequested);
             };
             auto reduceFunc = [&](QVector<PairResult>& out, const PairResult& r) {
                 if (r.valid) {
@@ -6011,6 +6883,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             QVector<PairResult> results =
                 QtConcurrent::blockingMappedReduced<QVector<PairResult>>(
                     tasks, mapFunc, reduceFunc, QtConcurrent::OrderedReduce);
+            if (cancelled()) {
+                ret.cancelled = true;
+                return ret;
+            }
 
             std::vector<std::pair<int,int>> edges;
             std::vector<std::vector<double>> pairCosts;
@@ -6032,6 +6908,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
             opts.maxIter = in.all_opti;
             opts.tol = 1e-8;
             opts.stallIters = 10;
+            opts.shouldCancel = cancelled;
             std::vector<std::vector<double>> unaryCosts(N, std::vector<double>(K, 0.0));
             int fixedLabel = -1;
             for (int l = 0; l < K; ++l) {
@@ -6051,6 +6928,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
             TRWS solver(N, K, unaryCosts, edges, pairCosts, order, opts);
             TRWSResult result = solver.run();
+            if (result.cancelled || cancelled()) {
+                ret.cancelled = true;
+                return ret;
+            }
 
             det.itr = result.iterations;
             det.energy = result.energy;
@@ -6091,7 +6972,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
 
             int xsum = std::count_if(xs_result.begin(), xs_result.end(),[](int x) { return x != 0; });
             int ysum = std::count_if(ys_result.begin(), ys_result.end(),[](int x) { return x != 0; });
-            advanceProgress(QString("全体最適化 %1/%2").arg(witr).arg(in.all_itr));
+            advanceProgress(tr("全体最適化 %1/%2").arg(witr).arg(in.all_itr));
             if (xsum + ysum == 0) {
                 det.shuusoku = true;
                 break;
@@ -6157,6 +7038,7 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
         QVector<SsimEvalResult> results = QtConcurrent::blockingMapped<QVector<SsimEvalResult>>(
             taskVec,
             [&](const PairTask& ts) -> SsimEvalResult {
+                if (cancelled()) return SsimEvalResult{ts.i, ts.j, 0.0};
                 double s_v = SSIM_calc_oneshot(
                     SSIM_TaskInput{
                         in.imgs[ts.i], in.imgs[ts.j],
@@ -6168,6 +7050,10 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
                 return SsimEvalResult{ts.i, ts.j, s_v};
             }
             );
+        if (cancelled()) {
+            ret.cancelled = true;
+            return ret;
+        }
 
         int ts_count = 0;
         double ssim_min = 1.0;
@@ -6193,60 +7079,61 @@ CalcTRWSoutput MainWindow::calc_TRWS_core(CalcTRWSinput in)
         ret.detail.push_back(det);
         ret.log.push_back(lo);
         ret.poss = in_poss;
-        advanceProgress("全体最適化 SSIM");
+        advanceProgress(tr("全体最適化 SSIM"));
     }
     ret.err = "";
-    reportProgress(progressMaximum, progressMaximum,
-                   skipWholeOptimization ? "局所最適化で停止" : "最適化完了");
+    if (cancelled()) {
+        ret.cancelled = true;
+        return ret;
+    }
+    reportProgress(progressMaximum, progressMaximum, tr("最適化完了"));
     return ret;
 }
 
 void MainWindow::show_opti_settings()
 {
-    opti_settings dialog(this);
-    dialog.setValues(pa_num,pa_radi,pa_opti,pa_itr,all_radi,all_opti,all_itr,pa_TF,all_TF,pa_auto_increment_TF,pa_increment,pa_increment_count);
-
-    if (dialog.exec() == QDialog::Accepted) {
-        // OKが押されたとき
-        std::vector<int> retV = dialog.getValues();
-        pa_num = retV[0];
-        pa_radi = retV[1];
-        pa_opti = retV[2];
-        pa_itr = retV[3];
-        all_radi = retV[4];
-        all_opti = retV[5];
-        all_itr = retV[6];
-        pa_increment = retV[7];
-        pa_increment_count = retV[8];
-        std::vector<bool> retTF = dialog.getTFs();
-        pa_TF = retTF[0];
-        all_TF = retTF[1];
-        pa_auto_increment_TF = retTF[2];
-        if ((!pa_TF) && (!all_TF)) {
-            ui->pushButton_3->setEnabled(false);
-        } else if (!calc1_finished_state) {
-            ui->pushButton_3->setEnabled(false);
-        } else {
-            ui->pushButton_3->setEnabled(true);
-        }
+    if (!optimizationSettingsDialog) {
+        optimizationSettingsDialog = new opti_settings(this);
+        optimizationSettingsDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+        optimizationSettingsDialog->setModal(false);
+        optimizationSettingsDialog->setWindowModality(Qt::NonModal);
+        trackDialogSize(optimizationSettingsDialog,
+                        QStringLiteral("trwsPamiSettings"),
+                        QSize(550, 398));
+        optimizationSettingsDialog->setValues(
+            pa_num, pa_radi, pa_opti, pa_itr,
+            all_radi, all_opti, all_itr,
+            pa_TF, all_TF, pa_auto_increment_TF,
+            pa_increment, pa_increment_count);
+        connect(optimizationSettingsDialog, &QDialog::accepted,
+                this, &MainWindow::readOptimizationSettingsDialog);
     }
+    optimizationSettingsDialog->show();
+    optimizationSettingsDialog->raise();
+    optimizationSettingsDialog->activateWindow();
 }
 
 void MainWindow::show_least_squares_settings()
 {
-    least_squares_settings dialog(this);
-    dialog.setValues(leastSquaresSettings.regressionThreshold,
-                     leastSquaresSettings.relativeThreshold,
-                     leastSquaresSettings.absoluteThreshold,
-                     leastSquaresSettings.maxPairErrorForRelative);
-
-    if (dialog.exec() == QDialog::Accepted) {
-        const auto values = dialog.getValues();
-        leastSquaresSettings.regressionThreshold = values[0];
-        leastSquaresSettings.relativeThreshold = values[1];
-        leastSquaresSettings.absoluteThreshold = values[2];
-        leastSquaresSettings.maxPairErrorForRelative = values[3];
+    if (!leastSquaresSettingsDialog) {
+        leastSquaresSettingsDialog = new least_squares_settings(this);
+        leastSquaresSettingsDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+        leastSquaresSettingsDialog->setModal(false);
+        leastSquaresSettingsDialog->setWindowModality(Qt::NonModal);
+        trackDialogSize(leastSquaresSettingsDialog,
+                        QStringLiteral("leastSquaresSettings"),
+                        QSize(430, 190));
+        leastSquaresSettingsDialog->setValues(
+            leastSquaresSettings.regressionThreshold,
+            leastSquaresSettings.relativeThreshold,
+            leastSquaresSettings.absoluteThreshold,
+            leastSquaresSettings.maxPairErrorForRelative);
+        connect(leastSquaresSettingsDialog, &QDialog::accepted,
+                this, &MainWindow::readLeastSquaresSettingsDialog);
     }
+    leastSquaresSettingsDialog->show();
+    leastSquaresSettingsDialog->raise();
+    leastSquaresSettingsDialog->activateWindow();
 }
 
 void MainWindow::show_merge_settings()
@@ -6255,11 +7142,310 @@ void MainWindow::show_merge_settings()
         return;
     }
 
-    merge_settings dialog(this);
-    dialog.setMode(static_cast<int>(imageMergeSettings.mode));
+    if (!mergeSettingsDialog) {
+        mergeSettingsDialog = new merge_settings(this);
+        mergeSettingsDialog->setAttribute(Qt::WA_DeleteOnClose, false);
+        mergeSettingsDialog->setModal(false);
+        mergeSettingsDialog->setWindowModality(Qt::NonModal);
+        trackDialogSize(mergeSettingsDialog,
+                        QStringLiteral("imageMergeSettings"),
+                        QSize(430, 105));
+        mergeSettingsDialog->setMode(static_cast<int>(imageMergeSettings.mode));
+        connect(mergeSettingsDialog, &QDialog::accepted,
+                this, &MainWindow::readMergeSettingsDialog);
+    }
+    mergeSettingsDialog->show();
+    mergeSettingsDialog->raise();
+    mergeSettingsDialog->activateWindow();
+}
 
-    if (dialog.exec() == QDialog::Accepted) {
-        imageMergeSettings.mode = static_cast<ImageMergeMode>(dialog.getMode());
+void MainWindow::readOptimizationSettingsDialog()
+{
+    if (!optimizationSettingsDialog) return;
+    const std::vector<int> values = optimizationSettingsDialog->getValues();
+    const std::vector<bool> flags = optimizationSettingsDialog->getTFs();
+    if (values.size() < 9 || flags.size() < 3) return;
+
+    pa_num = values[0];
+    pa_radi = values[1];
+    pa_opti = values[2];
+    pa_itr = values[3];
+    all_radi = values[4];
+    all_opti = values[5];
+    all_itr = values[6];
+    pa_increment = values[7];
+    pa_increment_count = values[8];
+    pa_TF = flags[0];
+    all_TF = flags[1];
+    pa_auto_increment_TF = flags[2];
+    ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+
+    TrwsPamiDefaultSettings settings;
+    settings.localEnabled = pa_TF;
+    settings.localImageCount = pa_num;
+    settings.localAutoIncrement = pa_auto_increment_TF;
+    settings.localImageCountIncrement = pa_increment;
+    settings.localIncrementCount = pa_increment_count;
+    settings.localSearchRadius = pa_radi;
+    settings.localMaxIterations = pa_opti;
+    settings.localMaxLoops = pa_itr;
+    settings.globalEnabled = all_TF;
+    settings.globalSearchRadius = all_radi;
+    settings.globalMaxIterations = all_opti;
+    settings.globalMaxLoops = all_itr;
+    AppSettings::setTrwsPamiOptions(settings);
+}
+
+void MainWindow::readLeastSquaresSettingsDialog()
+{
+    if (!leastSquaresSettingsDialog) return;
+    const auto values = leastSquaresSettingsDialog->getValues();
+    leastSquaresSettings.regressionThreshold = values[0];
+    leastSquaresSettings.relativeThreshold = values[1];
+    leastSquaresSettings.absoluteThreshold = values[2];
+    leastSquaresSettings.maxPairErrorForRelative = values[3];
+    LeastSquaresDefaultSettings settings;
+    settings.regressionThreshold = leastSquaresSettings.regressionThreshold;
+    settings.relativeThreshold = leastSquaresSettings.relativeThreshold;
+    settings.absoluteThreshold = leastSquaresSettings.absoluteThreshold;
+    settings.maxPairErrorForRelative =
+        leastSquaresSettings.maxPairErrorForRelative;
+    AppSettings::setLeastSquaresOptions(settings);
+}
+
+void MainWindow::readMergeSettingsDialog()
+{
+    if (!mergeSettingsDialog) return;
+    imageMergeSettings.mode = static_cast<ImageMergeMode>(mergeSettingsDialog->getMode());
+    ImageMergeDefaultSettings settings;
+    settings.mode = static_cast<int>(imageMergeSettings.mode);
+    AppSettings::setImageMergeOptions(settings);
+}
+
+void MainWindow::scheduleSettingsPersistence()
+{
+    if (!suppressSettingsPersistence && settingsPersistenceTimer) {
+        settingsPersistenceTimer->start();
+    }
+}
+
+void MainWindow::persistAlignmentSettings()
+{
+    if (suppressSettingsPersistence || !ui) {
+        return;
+    }
+    AlignmentDefaultSettings settings;
+    settings.horizontalOverlapPercent = ui->spinBox_2->value();
+    settings.verticalOverlapPercent = ui->spinBox_3->value();
+    settings.searchRangePercent = ui->spinBox->value();
+    AppSettings::setAlignmentOptions(settings);
+}
+
+void MainWindow::persistArrangementSettings()
+{
+    if (suppressSettingsPersistence || !ui) {
+        return;
+    }
+    ArrangementDefaultSettings settings;
+    settings.direction = ui->cornerSelector->getStatus();
+    settings.horizontalImageCount = std::max(0, configuredHorizontalImageCount);
+    settings.verticalImageCount = std::max(0, configuredVerticalImageCount);
+    settings.zigzag = ui->cornerSelector->zigzagChecked();
+    AppSettings::setArrangementOptions(settings);
+}
+
+void MainWindow::persistControlPanelWidth()
+{
+    if (suppressSettingsPersistence || !ui || !ui->mainSplitter) {
+        return;
+    }
+    const QList<int> sizes = ui->mainSplitter->sizes();
+    if (!sizes.isEmpty()) {
+        AppSettings::setControlPanelWidth(
+            std::max(ui->leftScrollArea->minimumWidth(), sizes.first()));
+    }
+}
+
+void MainWindow::trackDialogSize(QDialog* dialog,
+                                 const QString& key,
+                                 const QSize& defaultSize)
+{
+    if (!dialog || trackedDialogSizeKeys.contains(dialog)) {
+        return;
+    }
+    trackedDialogSizeKeys.insert(dialog, key);
+    trackedDialogDefaultSizes.insert(dialog, defaultSize);
+    dialog->resize(AppSettings::windowSize(key, defaultSize));
+    connect(dialog, &QDialog::finished, this, [dialog, key]() {
+        AppSettings::setWindowSize(key, dialog->size());
+    });
+    connect(dialog, &QObject::destroyed, this, [this, dialog]() {
+        trackedDialogSizeKeys.remove(dialog);
+        trackedDialogDefaultSizes.remove(dialog);
+    });
+}
+
+void MainWindow::saveTrackedWindowSizes()
+{
+    for (auto it = trackedDialogSizeKeys.constBegin();
+         it != trackedDialogSizeKeys.constEnd(); ++it) {
+        if (it.key()) {
+            AppSettings::setWindowSize(it.value(), it.key()->size());
+        }
+    }
+}
+
+void MainWindow::resetOpenWindowSizes()
+{
+    resize(QSize(1200, 750));
+    const int minimumControlPanelWidth = ui->leftScrollArea->minimumWidth();
+    const int availableWidth = std::max(1, ui->mainSplitter->width());
+    ui->mainSplitter->setSizes(
+        {minimumControlPanelWidth,
+         std::max(1, availableWidth - minimumControlPanelWidth)});
+    for (auto it = trackedDialogDefaultSizes.constBegin();
+         it != trackedDialogDefaultSizes.constEnd(); ++it) {
+        if (it.key()) {
+            it.key()->resize(it.value());
+        }
+    }
+}
+
+void MainWindow::handleSettingsReset(SettingsResetCategory category)
+{
+    if (settingsPersistenceTimer) {
+        settingsPersistenceTimer->stop();
+    }
+
+    const bool resetAll = category == SettingsResetCategory::All;
+    if (resetAll) {
+        AppSettings::resetAllUserSettings();
+    } else {
+        switch (category) {
+        case SettingsResetCategory::ApplicationDialog:
+            AppSettings::resetApplicationDialogSettings();
+            break;
+        case SettingsResetCategory::Alignment:
+            AppSettings::resetAlignmentOptions();
+            break;
+        case SettingsResetCategory::Layout:
+            AppSettings::resetArrangementOptions();
+            break;
+        case SettingsResetCategory::LeastSquares:
+            AppSettings::resetLeastSquaresOptions();
+            break;
+        case SettingsResetCategory::TrwsPami:
+            AppSettings::resetTrwsPamiOptions();
+            break;
+        case SettingsResetCategory::ImageMerge:
+            AppSettings::resetImageMergeOptions();
+            break;
+        case SettingsResetCategory::All:
+            break;
+        }
+    }
+
+    suppressSettingsPersistence = true;
+
+    if (resetAll || category == SettingsResetCategory::ApplicationDialog) {
+        if (applicationSettingsDialog) {
+            applicationSettingsDialog->reloadFromSettings();
+        } else {
+            applyApplicationTheme(AppSettings::theme());
+            applyApplicationLanguage(AppSettings::language());
+        }
+    }
+
+    if (resetAll || category == SettingsResetCategory::Alignment) {
+        const AlignmentDefaultSettings settings = AppSettings::alignmentOptions();
+        const QSignalBlocker horizontalSliderBlocker(ui->horizontalSlider);
+        const QSignalBlocker horizontalSpinBlocker(ui->spinBox_2);
+        const QSignalBlocker verticalSliderBlocker(ui->horizontalSlider_2);
+        const QSignalBlocker verticalSpinBlocker(ui->spinBox_3);
+        const QSignalBlocker rangeSliderBlocker(ui->horizontalSlider_3);
+        const QSignalBlocker rangeSpinBlocker(ui->spinBox);
+        ui->horizontalSlider->setValue(settings.horizontalOverlapPercent);
+        ui->spinBox_2->setValue(settings.horizontalOverlapPercent);
+        ui->horizontalSlider_2->setValue(settings.verticalOverlapPercent);
+        ui->spinBox_3->setValue(settings.verticalOverlapPercent);
+        ui->horizontalSlider_3->setValue(settings.searchRangePercent);
+        ui->spinBox->setValue(settings.searchRangePercent);
+        arrangeSettingsChanged();
+    }
+
+    if (resetAll || category == SettingsResetCategory::Layout) {
+        const ArrangementDefaultSettings settings = AppSettings::arrangementOptions();
+        configuredHorizontalImageCount = settings.horizontalImageCount;
+        configuredVerticalImageCount = settings.verticalImageCount;
+        if (input_files.isEmpty()) {
+            ui->cornerSelector->setUI(settings.direction);
+        } else {
+            set_array_value(settings.direction,
+                            settings.horizontalImageCount,
+                            settings.verticalImageCount);
+        }
+        ui->cornerSelector->setZigzagChecked(settings.zigzag);
+        orikaeshi = ui->cornerSelector->zigzagChecked();
+        arrangeSettingsChanged();
+    }
+
+    if (resetAll || category == SettingsResetCategory::LeastSquares) {
+        const LeastSquaresDefaultSettings settings =
+            AppSettings::leastSquaresOptions();
+        leastSquaresSettings.regressionThreshold = settings.regressionThreshold;
+        leastSquaresSettings.relativeThreshold = settings.relativeThreshold;
+        leastSquaresSettings.absoluteThreshold = settings.absoluteThreshold;
+        leastSquaresSettings.maxPairErrorForRelative =
+            settings.maxPairErrorForRelative;
+        if (leastSquaresSettingsDialog) {
+            leastSquaresSettingsDialog->setValues(
+                settings.regressionThreshold,
+                settings.relativeThreshold,
+                settings.absoluteThreshold,
+                settings.maxPairErrorForRelative);
+        }
+    }
+
+    if (resetAll || category == SettingsResetCategory::TrwsPami) {
+        const TrwsPamiDefaultSettings settings = AppSettings::trwsPamiOptions();
+        pa_TF = settings.localEnabled;
+        pa_num = settings.localImageCount;
+        pa_auto_increment_TF = settings.localAutoIncrement;
+        pa_increment = settings.localImageCountIncrement;
+        pa_increment_count = settings.localIncrementCount;
+        pa_radi = settings.localSearchRadius;
+        pa_opti = settings.localMaxIterations;
+        pa_itr = settings.localMaxLoops;
+        all_TF = settings.globalEnabled;
+        all_radi = settings.globalSearchRadius;
+        all_opti = settings.globalMaxIterations;
+        all_itr = settings.globalMaxLoops;
+        if (optimizationSettingsDialog) {
+            optimizationSettingsDialog->setValues(
+                pa_num, pa_radi, pa_opti, pa_itr,
+                all_radi, all_opti, all_itr,
+                pa_TF, all_TF, pa_auto_increment_TF,
+                pa_increment, pa_increment_count);
+        }
+        ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+    }
+
+    if (resetAll || category == SettingsResetCategory::ImageMerge) {
+        const ImageMergeDefaultSettings settings = AppSettings::imageMergeOptions();
+        imageMergeSettings.mode = static_cast<ImageMergeMode>(settings.mode);
+        if (mergeSettingsDialog) {
+            mergeSettingsDialog->setMode(settings.mode);
+        }
+    }
+
+    if (resetAll) {
+        applyCanvasBackgroundSetting(AppSettings::canvasBackground());
+        resetOpenWindowSizes();
+    }
+
+    suppressSettingsPersistence = false;
+    if (statusMessageLabel) {
+        statusMessageLabel->setText(tr("設定をデフォルト値に戻しました。"));
     }
 }
 
@@ -6268,11 +7454,14 @@ void MainWindow::show_detail_opti()
 {
     const int n = input_files.size();
     if (n == 0) {
-        QMessageBox::warning(this, "最適化結果の詳細", "表示できるデータがありません。");
+        showNonModalMessage(QMessageBox::Warning, tr("最適化結果の詳細"),
+                            tr("表示できるデータがありません。"));
         return;
     }
     if (!calc2_finished_state) {
-        QMessageBox::warning(this, "最適化結果の詳細", "表示するデータがありません。先に位置合わせ最適化計算を実行してください。");
+        showNonModalMessage(
+            QMessageBox::Warning, tr("最適化結果の詳細"),
+            tr("表示するデータがありません。先に位置合わせ最適化計算を実行してください。"));
         return;
     }
 

@@ -18,6 +18,9 @@ public:
 
     QStringList selectedFiles() const { return fiw_files; }
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void onBrowseClicked();
     void onFilesDropped(const QStringList &files);
@@ -38,6 +41,7 @@ private:
     void onDupDelClicked();
 
     void onFilesReceived(const QStringList &files);
+    void retranslateUi();
 
     // ファイル名昇順ソート
     QStringList onSortUpFname(QStringList);

@@ -12,19 +12,19 @@
 #include <QtCore/QVariant>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QCheckBox>
-#include <QtWidgets/QComboBox>
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QMenuBar>
 #include <QtWidgets/QPushButton>
-#include <QtWidgets/QRadioButton>
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>
+#include <QtWidgets/QSplitter>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QWidget>
 #include "campus.h"
+#include "controlpanelscrollarea.h"
 #include "cornerdirectionselector.h"
 
 QT_BEGIN_NAMESPACE
@@ -34,7 +34,9 @@ class Ui_MainWindow
 public:
     QWidget *centralwidget;
     QGridLayout *gridLayout_2;
-    maincampus *graphicsView;
+    QSplitter *mainSplitter;
+    ControlPanelScrollArea *leftScrollArea;
+    QWidget *leftScrollAreaWidgetContents;
     QGridLayout *GridLayout;
     QPushButton *pushButton_4;
     QCheckBox *checkBox;
@@ -60,13 +62,10 @@ public:
     QGridLayout *gridLayout_6;
     QSlider *sliderOpacity1;
     QSpinBox *spinOpacity1;
-    QComboBox *comboBox;
-    QLabel *label;
     QLabel *label_2;
     QLabel *label_8;
     QLabel *label_9;
     QPushButton *pushButton_1;
-    QLabel *label_7;
     QGroupBox *groupBox_4;
     QGridLayout *gridLayout_4;
     QLabel *label_11;
@@ -78,13 +77,10 @@ public:
     QSpinBox *spinBox_3;
     QSlider *horizontalSlider_3;
     QLabel *label_3;
-    QGroupBox *groupBox_2;
-    QGridLayout *gridLayout_5;
-    QRadioButton *radioButton_3;
-    QRadioButton *radioButton_4;
     QGroupBox *groupBox_3;
     QGridLayout *gridLayout;
     CornerDirectionSelector *cornerSelector;
+    maincampus *graphicsView;
     QMenuBar *menubar;
     QStatusBar *statusbar;
 
@@ -98,30 +94,42 @@ public:
         sizePolicy.setVerticalStretch(0);
         sizePolicy.setHeightForWidth(MainWindow->sizePolicy().hasHeightForWidth());
         MainWindow->setSizePolicy(sizePolicy);
+        MainWindow->setMinimumSize(QSize(640, 420));
         MainWindow->setBaseSize(QSize(0, 0));
         centralwidget = new QWidget(MainWindow);
         centralwidget->setObjectName("centralwidget");
         gridLayout_2 = new QGridLayout(centralwidget);
         gridLayout_2->setObjectName("gridLayout_2");
-        graphicsView = new maincampus(centralwidget);
-        graphicsView->setObjectName("graphicsView");
-
-        gridLayout_2->addWidget(graphicsView, 0, 2, 1, 1);
-
-        GridLayout = new QGridLayout();
+        gridLayout_2->setContentsMargins(-1, 5, -1, -1);
+        mainSplitter = new QSplitter(centralwidget);
+        mainSplitter->setObjectName("mainSplitter");
+        mainSplitter->setOrientation(Qt::Orientation::Horizontal);
+        mainSplitter->setChildrenCollapsible(false);
+        leftScrollArea = new ControlPanelScrollArea(mainSplitter);
+        leftScrollArea->setObjectName("leftScrollArea");
+        leftScrollArea->setMinimumSize(QSize(320, 0));
+        leftScrollArea->setFrameShape(QFrame::Shape::NoFrame);
+        leftScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAlwaysOff);
+        leftScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAlwaysOff);
+        leftScrollArea->setWidgetResizable(true);
+        leftScrollAreaWidgetContents = new QWidget();
+        leftScrollAreaWidgetContents->setObjectName("leftScrollAreaWidgetContents");
+        leftScrollAreaWidgetContents->setGeometry(QRect(0, 0, 320, 800));
+        GridLayout = new QGridLayout(leftScrollAreaWidgetContents);
         GridLayout->setObjectName("GridLayout");
-        pushButton_4 = new QPushButton(centralwidget);
+        GridLayout->setContentsMargins(-1, 5, 4, -1);
+        pushButton_4 = new QPushButton(leftScrollAreaWidgetContents);
         pushButton_4->setObjectName("pushButton_4");
 
         GridLayout->addWidget(pushButton_4, 13, 0, 1, 3);
 
-        checkBox = new QCheckBox(centralwidget);
+        checkBox = new QCheckBox(leftScrollAreaWidgetContents);
         checkBox->setObjectName("checkBox");
         checkBox->setLayoutDirection(Qt::LayoutDirection::LeftToRight);
 
         GridLayout->addWidget(checkBox, 3, 0, 1, 2);
 
-        groupBox_6 = new QGroupBox(centralwidget);
+        groupBox_6 = new QGroupBox(leftScrollAreaWidgetContents);
         groupBox_6->setObjectName("groupBox_6");
         gridLayout_7 = new QGridLayout(groupBox_6);
         gridLayout_7->setObjectName("gridLayout_7");
@@ -206,12 +214,12 @@ public:
 
         GridLayout->addWidget(groupBox_6, 12, 0, 1, 3);
 
-        pushButton_7 = new QPushButton(centralwidget);
+        pushButton_7 = new QPushButton(leftScrollAreaWidgetContents);
         pushButton_7->setObjectName("pushButton_7");
 
         GridLayout->addWidget(pushButton_7, 3, 2, 1, 1);
 
-        groupBox_5 = new QGroupBox(centralwidget);
+        groupBox_5 = new QGroupBox(leftScrollAreaWidgetContents);
         groupBox_5->setObjectName("groupBox_5");
         gridLayout_6 = new QGridLayout(groupBox_5);
         gridLayout_6->setObjectName("gridLayout_6");
@@ -231,17 +239,6 @@ public:
         spinOpacity1->setObjectName("spinOpacity1");
 
         gridLayout_6->addWidget(spinOpacity1, 3, 3, 1, 1);
-
-        comboBox = new QComboBox(groupBox_5);
-        comboBox->setObjectName("comboBox");
-
-        gridLayout_6->addWidget(comboBox, 1, 2, 1, 2);
-
-        label = new QLabel(groupBox_5);
-        label->setObjectName("label");
-        label->setAlignment(Qt::AlignmentFlag::AlignCenter);
-
-        gridLayout_6->addWidget(label, 1, 1, 1, 1);
 
         label_2 = new QLabel(groupBox_5);
         label_2->setObjectName("label_2");
@@ -264,22 +261,12 @@ public:
 
         GridLayout->addWidget(groupBox_5, 10, 0, 1, 3);
 
-        pushButton_1 = new QPushButton(centralwidget);
+        pushButton_1 = new QPushButton(leftScrollAreaWidgetContents);
         pushButton_1->setObjectName("pushButton_1");
 
         GridLayout->addWidget(pushButton_1, 2, 0, 1, 3);
 
-        label_7 = new QLabel(centralwidget);
-        label_7->setObjectName("label_7");
-        QSizePolicy sizePolicy2(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Expanding);
-        sizePolicy2.setHorizontalStretch(0);
-        sizePolicy2.setVerticalStretch(0);
-        sizePolicy2.setHeightForWidth(label_7->sizePolicy().hasHeightForWidth());
-        label_7->setSizePolicy(sizePolicy2);
-
-        GridLayout->addWidget(label_7, 14, 2, 1, 1);
-
-        groupBox_4 = new QGroupBox(centralwidget);
+        groupBox_4 = new QGroupBox(leftScrollAreaWidgetContents);
         groupBox_4->setObjectName("groupBox_4");
         gridLayout_4 = new QGridLayout(groupBox_4);
         gridLayout_4->setObjectName("gridLayout_4");
@@ -352,24 +339,7 @@ public:
 
         GridLayout->addWidget(groupBox_4, 4, 0, 1, 3);
 
-        groupBox_2 = new QGroupBox(centralwidget);
-        groupBox_2->setObjectName("groupBox_2");
-        gridLayout_5 = new QGridLayout(groupBox_2);
-        gridLayout_5->setObjectName("gridLayout_5");
-        radioButton_3 = new QRadioButton(groupBox_2);
-        radioButton_3->setObjectName("radioButton_3");
-
-        gridLayout_5->addWidget(radioButton_3, 1, 0, 1, 1);
-
-        radioButton_4 = new QRadioButton(groupBox_2);
-        radioButton_4->setObjectName("radioButton_4");
-
-        gridLayout_5->addWidget(radioButton_4, 1, 1, 1, 1);
-
-
-        GridLayout->addWidget(groupBox_2, 6, 0, 1, 3);
-
-        groupBox_3 = new QGroupBox(centralwidget);
+        groupBox_3 = new QGroupBox(leftScrollAreaWidgetContents);
         groupBox_3->setObjectName("groupBox_3");
         gridLayout = new QGridLayout(groupBox_3);
         gridLayout->setObjectName("gridLayout");
@@ -381,8 +351,14 @@ public:
 
         GridLayout->addWidget(groupBox_3, 5, 0, 1, 3);
 
+        leftScrollArea->setWidget(leftScrollAreaWidgetContents);
+        mainSplitter->addWidget(leftScrollArea);
+        graphicsView = new maincampus(mainSplitter);
+        graphicsView->setObjectName("graphicsView");
+        graphicsView->setMinimumSize(QSize(160, 0));
+        mainSplitter->addWidget(graphicsView);
 
-        gridLayout_2->addLayout(GridLayout, 0, 0, 1, 1);
+        gridLayout_2->addWidget(mainSplitter, 0, 0, 1, 1);
 
         MainWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(MainWindow);
@@ -421,12 +397,10 @@ public:
         pushButton_11->setText(QCoreApplication::translate("MainWindow", "\350\250\255\345\256\232", nullptr));
         pushButton_7->setText(QCoreApplication::translate("MainWindow", "\345\244\211\346\233\264\345\261\245\346\255\264", nullptr));
         groupBox_5->setTitle(QCoreApplication::translate("MainWindow", "\343\202\255\343\203\243\343\203\263\343\203\221\343\202\271", nullptr));
-        label->setText(QCoreApplication::translate("MainWindow", "\350\203\214\346\231\257\350\211\262", nullptr));
         label_2->setText(QCoreApplication::translate("MainWindow", "\351\201\270\346\212\236\347\224\273\345\203\217\343\201\256\351\200\217\346\230\216\345\272\246", nullptr));
         label_8->setText(QCoreApplication::translate("MainWindow", "\351\201\270\346\212\236\344\270\255\343\201\256\347\224\273\345\203\217\347\225\252\345\217\267", nullptr));
         label_9->setText(QString());
         pushButton_1->setText(QCoreApplication::translate("MainWindow", "\345\205\245\345\212\233\347\224\273\345\203\217", nullptr));
-        label_7->setText(QString());
         groupBox_4->setTitle(QCoreApplication::translate("MainWindow", "\347\224\273\345\203\217\345\220\214\345\243\253\343\201\256\351\207\215\343\201\252\343\202\212\347\233\256\345\256\211", nullptr));
         label_11->setText(QCoreApplication::translate("MainWindow", "\345\236\202\347\233\264\346\226\271\345\220\221\351\207\215\343\201\252\343\202\212", nullptr));
         spinBox_2->setSuffix(QCoreApplication::translate("MainWindow", " %", nullptr));
@@ -435,9 +409,6 @@ public:
         spinBox->setPrefix(QCoreApplication::translate("MainWindow", "\302\261 ", nullptr));
         spinBox_3->setSuffix(QCoreApplication::translate("MainWindow", " %", nullptr));
         label_3->setText(QCoreApplication::translate("MainWindow", "\346\216\242\347\264\242\347\257\204\345\233\262", nullptr));
-        groupBox_2->setTitle(QCoreApplication::translate("MainWindow", "\346\212\230\343\202\212\350\277\224\343\201\227\346\226\271\346\263\225", nullptr));
-        radioButton_3->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\223 \343\202\270\343\202\260\343\202\266\343\202\260", nullptr));
-        radioButton_4->setText(QCoreApplication::translate("MainWindow", "\342\206\221\342\206\221 \344\270\200\346\226\271\345\220\221\357\274\210\346\234\252\357\274\211", nullptr));
         groupBox_3->setTitle(QCoreApplication::translate("MainWindow", "\343\203\254\343\202\244\343\202\242\343\202\246\343\203\210", nullptr));
     } // retranslateUi
 

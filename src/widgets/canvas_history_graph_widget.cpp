@@ -7,6 +7,7 @@
 #include <QPaintEvent>
 #include <QPalette>
 #include <QSizePolicy>
+#include <QCoreApplication>
 
 #include <algorithm>
 #include <cmath>
@@ -78,7 +79,8 @@ void CanvasHistoryGraphWidget::paintEvent(QPaintEvent*)
 
     if (nodes.isEmpty()) {
         painter.setPen(palette().color(QPalette::WindowText));
-        painter.drawText(rect(), Qt::AlignCenter, QStringLiteral("履歴なし"));
+        painter.drawText(rect(), Qt::AlignCenter,
+                         QCoreApplication::translate("CanvasHistoryGraphWidget", "履歴なし"));
         return;
     }
 

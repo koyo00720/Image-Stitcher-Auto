@@ -1,17 +1,28 @@
 #include "least_squares_settings.h"
 #include "ui_least_squares_settings.h"
 
+#include <QEvent>
+
 least_squares_settings::least_squares_settings(QWidget *parent)
     : QDialog(parent),
       ui(new Ui::least_squares_settings)
 {
     ui->setupUi(this);
-    setWindowTitle("最小二乗法最適化設定");
+    setWindowTitle(tr("最小二乗法最適化設定"));
 }
 
 least_squares_settings::~least_squares_settings()
 {
     delete ui;
+}
+
+void least_squares_settings::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+        setWindowTitle(tr("最小二乗法最適化設定"));
+    }
 }
 
 void least_squares_settings::setValues(double regressionThreshold,

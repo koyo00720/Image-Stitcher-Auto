@@ -5,11 +5,52 @@
 #include <QColor>
 #include <cmath>
 #include <QResizeEvent>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 
 maincampus::maincampus(QWidget *parent) : QGraphicsView(parent)
 {
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    setAcceptDrops(true);
+    viewport()->setAcceptDrops(true);
     //setFocusPolicy(Qt::StrongFocus);
+}
+
+void maincampus::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+        return;
+    }
+    QGraphicsView::dragEnterEvent(event);
+}
+
+void maincampus::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+        return;
+    }
+    QGraphicsView::dragMoveEvent(event);
+}
+
+void maincampus::dropEvent(QDropEvent* event)
+{
+    QStringList localPaths;
+    for (const QUrl& url : event->mimeData()->urls()) {
+        if (url.isLocalFile()) {
+            localPaths.push_back(url.toLocalFile());
+        }
+    }
+    if (!localPaths.isEmpty()) {
+        emit filesDropped(localPaths);
+        event->acceptProposedAction();
+        return;
+    }
+    QGraphicsView::dropEvent(event);
 }
 
 

@@ -2,7 +2,12 @@
 #define CAMPUS_H
 
 #include <QGraphicsView>
+#include <QStringList>
 #include <QWidget>
+
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
 
 class maincampus : public QGraphicsView
 {
@@ -14,9 +19,13 @@ public:
 
 signals:
     void zoomChanged(int percent);
+    void filesDropped(const QStringList& paths);
 
 protected:
     void wheelEvent(QWheelEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
     //void keyPressEvent(QKeyEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 

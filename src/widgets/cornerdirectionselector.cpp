@@ -6,7 +6,23 @@
 #include <QFont>
 #include <QSignalBlocker>
 #include <QMessageBox>
+#include <QRadioButton>
+#include <QEvent>
 #include <cmath>
+
+namespace {
+void showNonModalWarning(QWidget* parent,
+                         const QString& title,
+                         const QString& text)
+{
+    auto* message = new QMessageBox(QMessageBox::Warning, title, text,
+                                    QMessageBox::Ok, parent);
+    message->setAttribute(Qt::WA_DeleteOnClose);
+    message->setModal(false);
+    message->setWindowModality(Qt::NonModal);
+    message->show();
+}
+}
 
 void CornerDirectionSelector::onRowsChanged(int rows)
 {
@@ -72,32 +88,47 @@ CornerDirectionSelector::CornerDirectionSelector(QWidget* parent)
 {
     setMouseTracking(true);
 
-    // 行数の制御
-    labelR = new QLabel("行数", this);
-    labelR->setGeometry(marginL+marginR+grid_size+22, marginT+grid_size/2 - 18, 40, 22);
+    // 行数の制御（英語表示でも切れないよう右側で縦に配置）
+    const int rightControlX = marginL + marginR + grid_size + 20;
+    labelR = new QLabel(this);
+    labelR->setGeometry(rightControlX, marginT + 3, 110, 20);
 
     spinR = new AutoSpinBox(this);
     spinR->setRange(0, photo_num);
-    spinR->setGeometry(marginL+marginR+grid_size+50, marginT+grid_size/2 - 18, 80, 22);
+    spinR->setGeometry(rightControlX, marginT + 25, 110, 22);
 
     sliderR = new QSlider(Qt::Horizontal, this);
     sliderR->setRange(0, photo_num);
-    sliderR->setGeometry(marginL+marginR+grid_size+20, marginT+grid_size/2 + 10, 110, 18);
+    sliderR->setGeometry(rightControlX, marginT + 49, 110, 18);
 
     connect(sliderR, &QSlider::valueChanged, this, [this](int v) { onRowsChanged(v); });
     connect(spinR, qOverload<int>(&QSpinBox::valueChanged), this, [this](int v) { onRowsChanged(v); });
 
+    // 折り返し方向は行数スライダーの直下に縦並びで表示する。
+    zigzagRadio = new QRadioButton(this);
+    zigzagRadio->setGeometry(rightControlX + 36, marginT + 110, 110, 22);
+    oneWayRadio = new QRadioButton(this);
+    oneWayRadio->setGeometry(rightControlX + 36, marginT + 134, 110, 22);
+    zigzagRadio->setChecked(true);
+    oneWayRadio->setEnabled(false);
+    connect(zigzagRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (checked) {
+            emit zigzagChanged(true);
+        }
+    });
+
     // 列数の制御
-    labelC = new QLabel("列数", this);
-    labelC->setGeometry(marginL+22 - 15, marginT+marginD+grid_size+40 - 18, 40, 22);
+    const int bottomControlY = marginT + marginD + grid_size + 14;
+    labelC = new QLabel(this);
+    labelC->setGeometry(marginL, bottomControlY, 58, 22);
 
     spinC = new AutoSpinBox(this);
     spinC->setRange(0, photo_num);
-    spinC->setGeometry(marginL+50 - 15, marginT+marginD+grid_size+40 - 18, 80, 22);
+    spinC->setGeometry(marginL + 60, bottomControlY, 80, 22);
 
     sliderC = new QSlider(Qt::Horizontal, this);
     sliderC->setRange(0, photo_num);
-    sliderC->setGeometry(marginL+20 - 15, marginT+marginD+grid_size+40 + 10, 110, 18);
+    sliderC->setGeometry(marginL, bottomControlY + 24, 140, 18);
 
     connect(sliderC, &QSlider::valueChanged, this, [this](int v) { onColsChanged(v); });
     connect(spinC, qOverload<int>(&QSpinBox::valueChanged), this, [this](int v) { onColsChanged(v); });
@@ -105,6 +136,34 @@ CornerDirectionSelector::CornerDirectionSelector(QWidget* parent)
     onRowsChanged(0);
 
     enable_UI(0, true);
+    retranslateUi();
+}
+
+void CornerDirectionSelector::changeEvent(QEvent* event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+    }
+}
+
+void CornerDirectionSelector::retranslateUi()
+{
+    labelR->setText(tr("行数"));
+    labelC->setText(tr("列数"));
+    zigzagRadio->setText(tr("ジグザグ"));
+    oneWayRadio->setText(tr("一方向"));
+}
+
+void CornerDirectionSelector::setZigzagChecked(bool zigzag)
+{
+    // 一方向は未実装のため、外部からfalseが渡されても選択可能にはしない。
+    zigzagRadio->setChecked(zigzag || !oneWayRadio->isEnabled());
+}
+
+bool CornerDirectionSelector::zigzagChecked() const
+{
+    return zigzagRadio->isChecked();
 }
 
 
@@ -497,30 +556,18 @@ void CornerDirectionSelector::setCauto()
 void CornerDirectionSelector::setRows(int i)
 {
     if (i > photo_num) {
-        QMessageBox::warning(
-            this,
-            tr("警告"),
-            "指定された行数は画像枚数を超えています。"
-            );
+        showNonModalWarning(this, tr("警告"),
+                            tr("指定された行数は画像枚数を超えています。"));
     } else if (i < 0) {
-        QMessageBox::warning(
-            this,
-            tr("警告"),
-            "0以上の行数を指定してください。（0=Auto）"
-            );
+        showNonModalWarning(this, tr("警告"),
+                            tr("0以上の行数を指定してください。（0=Auto）"));
     } else {
         if (state_UI == -1) {
-            QMessageBox::warning(
-                this,
-                tr("警告"),
-                "setUIを初めに実行してください。"
-                );
+            showNonModalWarning(this, tr("警告"),
+                                tr("setUIを初めに実行してください。"));
         } else if (state_UI == 1 || state_UI == 3 || state_UI == 5 || state_UI == 7) {
-            QMessageBox::warning(
-                this,
-                tr("警告"),
-                "setColsを使って設定してください。"
-                );
+            showNonModalWarning(this, tr("警告"),
+                                tr("setColsを使って設定してください。"));
         } else {
             onRowsChanged(i);
         }
@@ -530,30 +577,18 @@ void CornerDirectionSelector::setRows(int i)
 void CornerDirectionSelector::setCols(int i)
 {
     if (i > photo_num) {
-        QMessageBox::warning(
-            this,
-            tr("警告"),
-            "指定された列数は画像枚数を超えています。"
-            );
+        showNonModalWarning(this, tr("警告"),
+                            tr("指定された列数は画像枚数を超えています。"));
     } else if (i < 0) {
-        QMessageBox::warning(
-            this,
-            tr("警告"),
-            "0以上の列数を指定してください。（0=Auto）"
-            );
+        showNonModalWarning(this, tr("警告"),
+                            tr("0以上の列数を指定してください。（0=Auto）"));
     } else {
         if (state_UI == -1) {
-            QMessageBox::warning(
-                this,
-                tr("警告"),
-                "setUIを初めに実行してください。"
-                );
+            showNonModalWarning(this, tr("警告"),
+                                tr("setUIを初めに実行してください。"));
         } else if (state_UI == 2 || state_UI == 4 || state_UI == 6 || state_UI == 8) {
-            QMessageBox::warning(
-                this,
-                tr("警告"),
-                "setRowsを使って設定してください。"
-                );
+            showNonModalWarning(this, tr("警告"),
+                                tr("setRowsを使って設定してください。"));
         } else {
             onColsChanged(i);
         }

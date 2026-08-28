@@ -18,7 +18,11 @@ public:
     void setMode(int mode);
     int getMode() const;
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
+    void retranslateUi();
     Ui::merge_settings *ui;
 };
 

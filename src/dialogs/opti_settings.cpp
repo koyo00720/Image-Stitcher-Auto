@@ -1,10 +1,12 @@
 #include "opti_settings.h"
 #include "ui_opti_settings.h"
 
+#include <QEvent>
+
 opti_settings::opti_settings(QWidget *parent) : QDialog(parent), ui(new Ui::opti_settings)
 {
     ui->setupUi(this);
-    setWindowTitle("最適化設定");
+    setWindowTitle(tr("最適化設定"));
 
     connect(ui->horizontalSlider, &QSlider::valueChanged,
             ui->spinBox, &QSpinBox::setValue);
@@ -57,6 +59,15 @@ opti_settings::opti_settings(QWidget *parent) : QDialog(parent), ui(new Ui::opti
 opti_settings::~opti_settings()
 {
     delete ui;
+}
+
+void opti_settings::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+        setWindowTitle(tr("最適化設定"));
+    }
 }
 
 void opti_settings::lock1(bool checked) {

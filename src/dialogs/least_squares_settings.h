@@ -22,6 +22,9 @@ public:
                    double maxPairErrorForRelative);
     std::array<double, 4> getValues() const;
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     Ui::least_squares_settings *ui;
 };

@@ -37,9 +37,11 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QPoint \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QPointF \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QRect \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QSize \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QString \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QStringList \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QVector \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/QtGlobal \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q17memory.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20functional.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtCore/q20iterator.h \
@@ -231,6 +233,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QGraphicsView \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QLabel \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QMainWindow \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QMessageBox \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QSlider \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QSpinBox \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/QTableWidget \
@@ -241,11 +244,13 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qabstractslider.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qabstractspinbox.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qdialog.h \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qdialogbuttonbox.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qframe.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qgraphicsscene.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qgraphicsview.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qlabel.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qmainwindow.h \
+	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qmessagebox.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qrubberband.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qscrollarea.h \
 	C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets/qsizepolicy.h \
@@ -319,6 +324,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreConfigExtras.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreConfigVersion.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreConfigVersionImpl.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreConfigureFileTemplate.in \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreDependencies.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreMacros.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreTargets-relwithdebinfo.cmake \
@@ -397,6 +403,15 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6GuiTools/Qt6GuiToolsTargets-relwithdebinfo.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6GuiTools/Qt6GuiToolsTargets.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6GuiTools/Qt6GuiToolsVersionlessTargets.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsAdditionalTargetInfo.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfigVersion.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfigVersionImpl.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsDependencies.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsMacros.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsTargets-relwithdebinfo.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsTargets.cmake \
+	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsVersionlessTargets.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Widgets/Qt6QModernWindowsStylePluginAdditionalTargetInfo.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Widgets/Qt6QModernWindowsStylePluginConfig.cmake \
 	C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Widgets/Qt6QModernWindowsStylePluginTargets-relwithdebinfo.cmake \
@@ -426,6 +441,7 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeGenericSystem.cmake \
 	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake \
 	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake \
+	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeParseArguments.cmake \
 	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeRCInformation.cmake \
 	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeSystemSpecificInformation.cmake \
 	C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeSystemSpecificInitialize.cmake \
@@ -609,7 +625,6 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/set \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/sstream \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/stdexcept \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/stdlib.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/streambuf \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/string \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/string_view \
@@ -647,95 +662,117 @@ Image_Stitcher_Auto_autogen/timestamp: \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32/bits/gthr.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32/bits/os_defines.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/emmintrin.h \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/float.h \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/limits.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/mm_malloc.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/mmintrin.h \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/stdarg.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/stdbool.h \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/stddef.h \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/stdint.h \
-	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/syslimits.h \
 	C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/xmmintrin.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/_mingw.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/_mingw_mac.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/_mingw_off_t.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/_mingw_secapi.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/_mingw_stat64.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/_timeval.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/assert.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/corecrt.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/corecrt_startup.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/corecrt_stdio_config.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/corecrt_wstdlib.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/crtdefs.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/ctype.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/errno.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/locale.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/process.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/pthread.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/pthread_compat.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/pthread_signal.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/pthread_time.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/pthread_unistd.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sec_api/stdio_s.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sec_api/string_s.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sec_api/sys/timeb_s.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sec_api/wchar_s.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/signal.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/stdio.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/string.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/swprintf.inl \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sys/timeb.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/sys/types.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/time.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/vadefs.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
-	C:/Qt_OSS/Tools/mingw1310_64/x86_64-w64-mingw32/include/wctype.h \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/CMakeLists.txt \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/autospinbox.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/autospinbox.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/Image_Stitcher_Auto.conf \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/.qtc/package-manager/auto-setup.cmake \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/.qtc/package-manager/maintenance_tool_provider.cmake \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/3.30.5/CMakeCXXCompiler.cmake \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/3.30.5/CMakeRCCompiler.cmake \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/3.30.5/CMakeSystem.cmake \
 	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/Image_Stitcher_Auto_autogen/moc_predefs.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/campus.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/campus.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/filetablewidget.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/filetablewidget.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/image_utils.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/image_utils.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/main.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/splash.qrc \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.cpp \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.h \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.ui \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.ui \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.ui \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.ui \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.ui \
-	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/resources/splash.qrc \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/main.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/mainwindow.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/mainwindow.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/app_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/app_settings.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/image_utils.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/image_utils.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/metal_ssim.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/metal_ssim_stub.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/trws.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/trws.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/vulkan_ssim.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/vulkan_ssim.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/vulkan_ssim_shader.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/application_settings_dialog.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/application_settings_dialog.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_dialog.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_dialog.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_opti_dialog.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_opti_dialog.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/file_input_wiz.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/file_input_wiz.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/least_squares_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/least_squares_settings.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/merge_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/merge_settings.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/opti_settings.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/opti_settings.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/platform/platform_setup.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/platform/windows/platform_setup.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/autospinbox.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/autospinbox.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/campus.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/campus.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/canvas_history_graph_widget.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/canvas_history_graph_widget.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/controlpanelscrollarea.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/cornerdirectionselector.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/cornerdirectionselector.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea_wiz.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea_wiz.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/filetablewidget.cpp \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/filetablewidget.h \
+	C:/msys64/mingw64/include/_mingw.h \
+	C:/msys64/mingw64/include/_mingw_mac.h \
+	C:/msys64/mingw64/include/_mingw_off_t.h \
+	C:/msys64/mingw64/include/_mingw_secapi.h \
+	C:/msys64/mingw64/include/_mingw_stat64.h \
+	C:/msys64/mingw64/include/_mingw_stdarg.h \
+	C:/msys64/mingw64/include/_timeval.h \
+	C:/msys64/mingw64/include/assert.h \
+	C:/msys64/mingw64/include/corecrt.h \
+	C:/msys64/mingw64/include/corecrt_startup.h \
+	C:/msys64/mingw64/include/corecrt_stdio_config.h \
+	C:/msys64/mingw64/include/corecrt_wconio.h \
+	C:/msys64/mingw64/include/corecrt_wctype.h \
+	C:/msys64/mingw64/include/corecrt_wstdlib.h \
+	C:/msys64/mingw64/include/crtdefs.h \
+	C:/msys64/mingw64/include/ctype.h \
+	C:/msys64/mingw64/include/errno.h \
+	C:/msys64/mingw64/include/float.h \
+	C:/msys64/mingw64/include/limits.h \
+	C:/msys64/mingw64/include/locale.h \
+	C:/msys64/mingw64/include/malloc.h \
+	C:/msys64/mingw64/include/process.h \
+	C:/msys64/mingw64/include/pthread.h \
+	C:/msys64/mingw64/include/pthread_compat.h \
+	C:/msys64/mingw64/include/pthread_signal.h \
+	C:/msys64/mingw64/include/pthread_time.h \
+	C:/msys64/mingw64/include/pthread_unistd.h \
+	C:/msys64/mingw64/include/sched.h \
+	C:/msys64/mingw64/include/sdks/_mingw_ddk.h \
+	C:/msys64/mingw64/include/sec_api/stdio_s.h \
+	C:/msys64/mingw64/include/sec_api/stdlib_s.h \
+	C:/msys64/mingw64/include/sec_api/string_s.h \
+	C:/msys64/mingw64/include/sec_api/sys/timeb_s.h \
+	C:/msys64/mingw64/include/sec_api/wchar_s.h \
+	C:/msys64/mingw64/include/sec_api/wconio_s.h \
+	C:/msys64/mingw64/include/signal.h \
+	C:/msys64/mingw64/include/stdarg.h \
+	C:/msys64/mingw64/include/stddef.h \
+	C:/msys64/mingw64/include/stdint.h \
+	C:/msys64/mingw64/include/stdio.h \
+	C:/msys64/mingw64/include/stdlib.h \
+	C:/msys64/mingw64/include/string.h \
+	C:/msys64/mingw64/include/swprintf.inl \
+	C:/msys64/mingw64/include/sys/timeb.h \
+	C:/msys64/mingw64/include/sys/types.h \
+	C:/msys64/mingw64/include/time.h \
+	C:/msys64/mingw64/include/vadefs.h \
+	C:/msys64/mingw64/include/wchar.h \
+	C:/msys64/mingw64/include/wctype.h \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/mainwindow.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_opti_dialog.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/file_input_wiz.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/least_squares_settings.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/merge_settings.ui \
+	C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/opti_settings.ui \
 	C:/Qt_OSS/Tools/CMake_64/bin/cmake.exe

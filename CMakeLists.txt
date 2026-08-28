@@ -2,6 +2,18 @@ cmake_minimum_required(VERSION 3.16)
 
 project(Image_Stitcher_Auto VERSION 1.2.0 LANGUAGES CXX)
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
+set(DEFAULT_SETTINGS_FILE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Image_Stitcher_Auto.conf")
+configure_file(
+    "${DEFAULT_SETTINGS_FILE}"
+    "${CMAKE_CURRENT_BINARY_DIR}/Image_Stitcher_Auto.conf"
+    COPYONLY
+)
+
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -19,7 +31,7 @@ if(WIN32 AND NOT DEFINED OpenCV_DIR)
 endif()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent LinguistTools)
 find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc highgui)
 
 option(IMAGE_STITCHER_ENABLE_VULKAN "Enable the Vulkan SSIM compute path when available" ON)
@@ -68,6 +80,7 @@ set(CORE_SOURCES
     src/core/app_settings.h
     src/core/image_utils.cpp
     src/core/image_utils.h
+    src/core/metal_ssim.h
     src/core/trws.cpp
     src/core/trws.h
     src/core/vulkan_ssim.cpp
@@ -75,6 +88,12 @@ set(CORE_SOURCES
     src/core/vulkan_ssim_shader.h
     src/core/shaders/ssim_batch.comp
 )
+
+if(APPLE)
+    list(APPEND CORE_SOURCES src/core/metal_ssim.mm)
+else()
+    list(APPEND CORE_SOURCES src/core/metal_ssim_stub.cpp)
+endif()
 
 set(DIALOG_SOURCES
     src/dialogs/application_settings_dialog.cpp
@@ -103,6 +122,7 @@ set(WIDGET_SOURCES
     src/widgets/autospinbox.h
     src/widgets/campus.cpp
     src/widgets/campus.h
+    src/widgets/controlpanelscrollarea.h
     src/widgets/canvas_history_graph_widget.cpp
     src/widgets/canvas_history_graph_widget.h
     src/widgets/cornerdirectionselector.cpp
@@ -127,6 +147,12 @@ if(WIN32)
         src/platform/windows/platform_setup.cpp
         src/platform/windows/app.rc
         src/platform/windows/app.ico
+    )
+elseif(APPLE)
+    set(TARGET_PLATFORM macos)
+    set(PLATFORM_SOURCES
+        src/platform/platform_setup.h
+        src/platform/macos/platform_setup.cpp
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(TARGET_PLATFORM linux)
@@ -162,11 +188,60 @@ else()
     )
 endif()
 
+set(TRANSLATION_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/translations/Image_Stitcher_Auto_en.ts"
+)
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt6_add_translation(TRANSLATION_FILES ${TRANSLATION_SOURCES})
+else()
+    qt5_add_translation(TRANSLATION_FILES ${TRANSLATION_SOURCES})
+endif()
+add_custom_target(Image_Stitcher_Auto_translations ALL
+    DEPENDS ${TRANSLATION_FILES}
+)
+add_dependencies(Image_Stitcher_Auto Image_Stitcher_Auto_translations)
+if(QT_VERSION_MAJOR EQUAL 6)
+    set_source_files_properties(${TRANSLATION_FILES} PROPERTIES GENERATED TRUE)
+    qt6_add_resources(Image_Stitcher_Auto embedded_translations
+        PREFIX "/translations"
+        BASE "${CMAKE_CURRENT_BINARY_DIR}"
+        FILES ${TRANSLATION_FILES}
+    )
+endif()
+add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${DEFAULT_SETTINGS_FILE}"
+        "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/Image_Stitcher_Auto.conf"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/translations"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${TRANSLATION_FILES}
+        "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/translations"
+)
+
 target_link_libraries(Image_Stitcher_Auto PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Concurrent
     ${OpenCV_LIBS}
 )
+
+if(APPLE)
+    find_library(IMAGE_STITCHER_METAL_FRAMEWORK Metal REQUIRED)
+    find_library(IMAGE_STITCHER_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    target_link_libraries(Image_Stitcher_Auto PRIVATE
+        ${IMAGE_STITCHER_METAL_FRAMEWORK}
+        ${IMAGE_STITCHER_FOUNDATION_FRAMEWORK}
+    )
+    set_source_files_properties(src/core/metal_ssim.mm PROPERTIES
+        COMPILE_OPTIONS "-fobjc-arc"
+    )
+    set_target_properties(Image_Stitcher_Auto PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+    )
+    message(STATUS "Image Stitcher Auto Metal SSIM: enabled")
+endif()
 
 if(IMAGE_STITCHER_ENABLE_VULKAN AND Vulkan_FOUND)
     target_link_libraries(Image_Stitcher_Auto PRIVATE Vulkan::Vulkan)
@@ -191,7 +266,20 @@ endif()
 
 include(GNUInstallDirs)
 install(TARGETS Image_Stitcher_Auto
+    BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+if(APPLE)
+    set(IMAGE_STITCHER_RUNTIME_DATA_DIR
+        "Image_Stitcher_Auto.app/Contents/MacOS")
+else()
+    set(IMAGE_STITCHER_RUNTIME_DATA_DIR ${CMAKE_INSTALL_BINDIR})
+endif()
+install(FILES "${DEFAULT_SETTINGS_FILE}"
+    DESTINATION ${IMAGE_STITCHER_RUNTIME_DATA_DIR}
+)
+install(FILES ${TRANSLATION_FILES}
+    DESTINATION ${IMAGE_STITCHER_RUNTIME_DATA_DIR}/translations
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)

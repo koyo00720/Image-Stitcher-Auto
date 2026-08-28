@@ -7,6 +7,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QEvent>
 
 DropArea_wiz::DropArea_wiz(QWidget *parent) : QFrame(parent)
 {
@@ -19,9 +20,17 @@ DropArea_wiz::DropArea_wiz(QWidget *parent) : QFrame(parent)
     updateDropAreaStyle(false);
 
     auto *layout = new QVBoxLayout(this);
-    auto *label = new QLabel(tr("ここにファイルをドラッグ＆ドロップ"), this);
-    label->setAlignment(Qt::AlignCenter);
-    layout->addWidget(label);
+    hintLabel = new QLabel(tr("ここにファイルをドラッグ＆ドロップ"), this);
+    hintLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(hintLabel);
+}
+
+void DropArea_wiz::changeEvent(QEvent* event)
+{
+    QFrame::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && hintLabel) {
+        hintLabel->setText(tr("ここにファイルをドラッグ＆ドロップ"));
+    }
 }
 
 void DropArea_wiz::updateDropAreaStyle(bool dragActive)

@@ -4,6 +4,8 @@
 #include <QFrame>
 #include <QStringList>
 
+class QLabel;
+
 class DropArea_wiz : public QFrame
 {
     Q_OBJECT
@@ -16,6 +18,7 @@ signals:
     void filesDropped(const QStringList &input_files);
 
 protected:
+    void changeEvent(QEvent* event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
@@ -24,6 +27,7 @@ protected:
 private:
     void updateDropAreaStyle(bool dragActive);
     QStringList m_files;
+    QLabel* hintLabel = nullptr;
 };
 
 #endif // DROPAREA_WIZ_H

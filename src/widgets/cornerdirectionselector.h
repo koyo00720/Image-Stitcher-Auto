@@ -7,6 +7,8 @@
 #include <QSlider>
 #include <QLabel>
 
+class QRadioButton;
+
 class CornerDirectionSelector : public QWidget
 {
     Q_OBJECT
@@ -44,6 +46,9 @@ public:
     // 列数を取得する
     int getCols() {return c_num;}
 
+    void setZigzagChecked(bool zigzag);
+    bool zigzagChecked() const;
+
 signals:
     // 画像のレイアウトを通知
     void stateChanged(int); // 0=未選択, 1..8=有効状態
@@ -51,8 +56,10 @@ signals:
     void r_Changed(int); // 0=Auto
     // 列数を通知
     void c_Changed(int); // 0=Auto
+    void zigzagChanged(bool zigzag);
 
 protected:
+    void changeEvent(QEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
 
@@ -67,8 +74,8 @@ private:
     const int marginD = 11;
     const int marginR = 10;
     const int spacing = 4;
-    const int right_arrow_width = 130;
-    const int down_arrow_width = 70;
+    const int right_arrow_width = 166;
+    const int down_arrow_width = 58;
 
     bool m_updating = false; // 相互シグナルの制御用
     void onRowsChanged(int);
@@ -81,6 +88,8 @@ private:
     QLabel *labelC = nullptr;
     AutoSpinBox *spinC = nullptr;
     QSlider *sliderC = nullptr;
+    QRadioButton *zigzagRadio = nullptr;
+    QRadioButton *oneWayRadio = nullptr;
 
     bool m_First = false;
     bool m_Second = false;
@@ -95,6 +104,7 @@ private:
     int c_num = -1; // 列数
 
     void enable_UI(int, bool);
+    void retranslateUi();
     int state_UI = -1; // UIの状態を保持
 };
 

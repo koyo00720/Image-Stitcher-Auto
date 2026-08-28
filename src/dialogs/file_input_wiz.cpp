@@ -1,5 +1,6 @@
 #include "file_input_wiz.h"
 #include "ui_file_input_wiz.h"
+#include "app_settings.h"
 #include "droparea_wiz.h"
 #include "filetablewidget.h"
 
@@ -15,6 +16,7 @@
 #include <QCollator>
 #include <QDateTime>
 #include <QDirIterator>
+#include <QEvent>
 #include <QSet>
 
 #include <algorithm>
@@ -26,19 +28,15 @@ FileInputDialog::FileInputDialog(const QStringList &initialFiles, QWidget *paren
 {
     ui->setupUi(this);
 
-    ui->comboBox->addItem("ファイル名（昇順）");
-    ui->comboBox->addItem("ファイル名（降順）");
-    ui->comboBox->addItem("日付時刻（昇順）");
-    ui->comboBox->addItem("日付時刻（降順）");
+    ui->tableWidgetFiles->setColumnCount(2);
+    retranslateUi();
+    ui->comboBox->setCurrentIndex(AppSettings::defaults().fileInput.sortMode);
 
     connect(ui->tableWidgetFiles, &FileTableWidget::rowsReordered,
             this, [this]() {
                 //renumberTableRows();
                 syncMFilesFromTable();
             });
-
-    ui->tableWidgetFiles->setColumnCount(2);
-    ui->tableWidgetFiles->setHorizontalHeaderLabels(QStringList() << "プレビュー" << "パス");
 
     ui->tableWidgetFiles->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableWidgetFiles->setSelectionMode(QAbstractItemView::ExtendedSelection); // または ExtendedSelection
@@ -109,18 +107,48 @@ FileInputDialog::~FileInputDialog()
     delete ui;
 }
 
+void FileInputDialog::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+    }
+}
+
+void FileInputDialog::retranslateUi()
+{
+    const int sortMode = std::max(0, ui->comboBox->currentIndex());
+    ui->retranslateUi(this);
+    ui->comboBox->clear();
+    ui->comboBox->addItem(tr("ファイル名（昇順）"));
+    ui->comboBox->addItem(tr("ファイル名（降順）"));
+    ui->comboBox->addItem(tr("日付時刻（昇順）"));
+    ui->comboBox->addItem(tr("日付時刻（降順）"));
+    ui->comboBox->setCurrentIndex(std::min(sortMode, ui->comboBox->count() - 1));
+    ui->tableWidgetFiles->setHorizontalHeaderLabels(
+        QStringList() << tr("プレビュー") << tr("パス"));
+}
+
 void FileInputDialog::onBrowseClicked()
 {
-    QStringList files = QFileDialog::getOpenFileNames(
-        this,
-        tr("画像ファイルを選択"),
-        QString(),
-        tr("画像ファイル (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;すべてのファイル (*)")
-        );
-
-    if (!files.isEmpty()) {
-        onFilesReceived(files);
-    }
+    auto* dialog = new QFileDialog(
+        this, tr("画像ファイルを選択"), QString(),
+        tr("画像ファイル (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;すべてのファイル (*)"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setAcceptMode(QFileDialog::AcceptOpen);
+    dialog->setFileMode(QFileDialog::ExistingFiles);
+    dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog->setModal(false);
+    dialog->setWindowModality(Qt::NonModal);
+    dialog->resize(AppSettings::windowSize(QStringLiteral("imageFilePicker"),
+                                           QSize(900, 600)));
+    connect(dialog, &QDialog::finished, dialog, [dialog]() {
+        AppSettings::setWindowSize(QStringLiteral("imageFilePicker"),
+                                   dialog->size());
+    });
+    connect(dialog, &QFileDialog::filesSelected,
+            this, &FileInputDialog::onFilesReceived);
+    dialog->show();
 }
 
 void FileInputDialog::onFilesDropped(const QStringList &files)
@@ -253,11 +281,11 @@ void FileInputDialog::onDupDelClicked()
 
 void FileInputDialog::onSortClicked()
 {
-    QString text = ui->comboBox->currentText();
-    if (text == "ファイル名（昇順）") {
+    const int sortMode = ui->comboBox->currentIndex();
+    if (sortMode == 0) {
         fiw_files = onSortUpFname(fiw_files);
         updateTable();
-    } else if (text == "ファイル名（降順）") {
+    } else if (sortMode == 1) {
         QCollator collator;
         collator.setNumericMode(true);
         collator.setCaseSensitivity(Qt::CaseInsensitive);
@@ -284,7 +312,7 @@ void FileInputDialog::onSortClicked()
                   });
 
         updateTable();
-    } else if (text == "日付時刻（昇順）") {
+    } else if (sortMode == 2) {
         QCollator collator;
         collator.setNumericMode(true);
         collator.setCaseSensitivity(Qt::CaseInsensitive);
@@ -315,7 +343,7 @@ void FileInputDialog::onSortClicked()
                   });
 
         updateTable();
-    } else if (text == "日付時刻（降順）") {
+    } else if (sortMode == 3) {
         QCollator collator;
         collator.setNumericMode(true);
         collator.setCaseSensitivity(Qt::CaseInsensitive);

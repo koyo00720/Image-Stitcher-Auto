@@ -31,6 +31,7 @@
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-windres.cmake",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX-ABI.cmake",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeCommonLanguageInclude.cmake",
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/Image_Stitcher_Auto.conf",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/Qt6ConfigVersion.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/Qt6Config.cmake",
@@ -172,18 +173,6 @@
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindVulkan.cmake",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindVulkan.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
-		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/FindWrapVulkanHeaders.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindVulkan.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindVulkan.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
-		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6GuiTools/Qt6GuiToolsConfigVersion.cmake",
@@ -277,6 +266,17 @@
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Concurrent/Qt6ConcurrentTargets-relwithdebinfo.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Concurrent/Qt6ConcurrentAdditionalTargetInfo.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Concurrent/Qt6ConcurrentVersionlessAliasTargets.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfigVersion.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfigVersionImpl.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake",
+		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeFindDependencyMacro.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsDependencies.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsTargets.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsTargets-relwithdebinfo.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsAdditionalTargetInfo.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsVersionlessTargets.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsMacros.cmake",
+		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/CMakeParseArguments.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/Qt6ConfigVersion.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake",
 		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6/Qt6Config.cmake",
@@ -330,8 +330,12 @@
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
 		"C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib/OpenCVModules.cmake",
 		"C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib/OpenCVModules-release.cmake",
+		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindVulkan.cmake",
+		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageHandleStandardArgs.cmake",
+		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/FindPackageMessage.cmake",
+		"C:/Qt_OSS/6.10.2/mingw_64/lib/cmake/Qt6Core/Qt6CoreConfigureFileTemplate.in",
 		"C:/Qt_OSS/Tools/CMake_64/share/cmake-3.30/Modules/GNUInstallDirs.cmake",
-		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/splash.qrc"
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/resources/splash.qrc"
 	],
 	"CMAKE_SOURCE_DIR" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto",
 	"CROSS_CONFIG" : false,
@@ -340,93 +344,141 @@
 	"HEADERS" : 
 	[
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/autospinbox.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/mainwindow.h",
 			"MU",
-			"EWIEGA46WW/moc_autospinbox.cpp",
+			"ISMKEKEPX5/moc_mainwindow.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/campus.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/app_settings.h",
 			"MU",
-			"EWIEGA46WW/moc_campus.cpp",
+			"PRMOGMWJPH/moc_app_settings.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/image_utils.h",
 			"MU",
-			"EWIEGA46WW/moc_canvas_history_graph_widget.cpp",
+			"PRMOGMWJPH/moc_image_utils.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/metal_ssim.h",
 			"MU",
-			"EWIEGA46WW/moc_cornerdirectionselector.cpp",
+			"PRMOGMWJPH/moc_metal_ssim.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/trws.h",
 			"MU",
-			"EWIEGA46WW/moc_detail_dialog.cpp",
+			"PRMOGMWJPH/moc_trws.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/vulkan_ssim.h",
 			"MU",
-			"EWIEGA46WW/moc_detail_opti_dialog.cpp",
+			"PRMOGMWJPH/moc_vulkan_ssim.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/vulkan_ssim_shader.h",
 			"MU",
-			"EWIEGA46WW/moc_droparea_wiz.cpp",
+			"PRMOGMWJPH/moc_vulkan_ssim_shader.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/application_settings_dialog.h",
 			"MU",
-			"EWIEGA46WW/moc_file_input_wiz.cpp",
+			"RGRURCYE3Z/moc_application_settings_dialog.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/filetablewidget.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_dialog.h",
 			"MU",
-			"EWIEGA46WW/moc_filetablewidget.cpp",
+			"RGRURCYE3Z/moc_detail_dialog.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/image_utils.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_opti_dialog.h",
 			"MU",
-			"EWIEGA46WW/moc_image_utils.cpp",
+			"RGRURCYE3Z/moc_detail_opti_dialog.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/file_input_wiz.h",
 			"MU",
-			"EWIEGA46WW/moc_least_squares_settings.cpp",
+			"RGRURCYE3Z/moc_file_input_wiz.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/least_squares_settings.h",
 			"MU",
-			"EWIEGA46WW/moc_mainwindow.cpp",
+			"RGRURCYE3Z/moc_least_squares_settings.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/merge_settings.h",
 			"MU",
-			"EWIEGA46WW/moc_merge_settings.cpp",
+			"RGRURCYE3Z/moc_merge_settings.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/opti_settings.h",
 			"MU",
-			"EWIEGA46WW/moc_opti_settings.cpp",
+			"RGRURCYE3Z/moc_opti_settings.cpp",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.h",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/platform/platform_setup.h",
 			"MU",
-			"EWIEGA46WW/moc_trws.cpp",
+			"36A7VMLXJR/moc_platform_setup.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/autospinbox.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_autospinbox.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/campus.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_campus.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/canvas_history_graph_widget.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_canvas_history_graph_widget.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/controlpanelscrollarea.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_controlpanelscrollarea.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/cornerdirectionselector.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_cornerdirectionselector.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_droparea.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea_wiz.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_droparea_wiz.cpp",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/filetablewidget.h",
+			"MU",
+			"RZ4CM6YYJ6/moc_filetablewidget.cpp",
 			null
 		]
 	],
@@ -435,6 +487,7 @@
 	"MOC_COMPILATION_FILE" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/Image_Stitcher_Auto_autogen/mocs_compilation.cpp",
 	"MOC_DEFINITIONS" : 
 	[
+		"IMAGE_STITCHER_HAS_VULKAN=1",
 		"MINGW_HAS_SECURE_API=1",
 		"QT_CONCURRENT_LIB",
 		"QT_CORE_LIB",
@@ -458,13 +511,18 @@
 	],
 	"MOC_INCLUDES" : 
 	[
-		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto",
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app",
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core",
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs",
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets",
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/platform",
 		"C:/OpenCV/opencv_install_qtmingw/include",
 		"C:/Qt_OSS/6.10.2/mingw_64/include/QtCore",
 		"C:/Qt_OSS/6.10.2/mingw_64/include",
 		"C:/Qt_OSS/6.10.2/mingw_64/mkspecs/win32-g++",
 		"C:/Qt_OSS/6.10.2/mingw_64/include/QtWidgets",
 		"C:/Qt_OSS/6.10.2/mingw_64/include/QtGui",
+		"C:/msys64/mingw64/include",
 		"C:/Qt_OSS/6.10.2/mingw_64/include/QtConcurrent",
 		"C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++",
 		"C:/Qt_OSS/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32",
@@ -495,7 +553,10 @@
 	],
 	"MOC_PREDEFS_FILE" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/Image_Stitcher_Auto_autogen/moc_predefs.h",
 	"MOC_RELAXED_MODE" : false,
-	"MOC_SKIP" : [],
+	"MOC_SKIP" : 
+	[
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/.qt/rcc/qrc_embedded_translations.cpp"
+	],
 	"MULTI_CONFIG" : false,
 	"PARALLEL" : 16,
 	"PARSE_CACHE_FILE" : "C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/CMakeFiles/Image_Stitcher_Auto_autogen.dir/ParseCache.txt",
@@ -507,89 +568,122 @@
 	"SOURCES" : 
 	[
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/autospinbox.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/main.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/campus.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/app/mainwindow.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/canvas_history_graph_widget.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/app_settings.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/cornerdirectionselector.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/image_utils.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_dialog.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/metal_ssim_stub.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/detail_opti_dialog.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/trws.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/droparea_wiz.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/core/vulkan_ssim.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/file_input_wiz.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/application_settings_dialog.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/filetablewidget.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_dialog.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/image_utils.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/detail_opti_dialog.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/least_squares_settings.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/file_input_wiz.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/main.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/least_squares_settings.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/mainwindow.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/merge_settings.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/merge_settings.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/dialogs/opti_settings.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/opti_settings.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/platform/windows/platform_setup.cpp",
 			"MU",
 			null
 		],
 		[
-			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/trws.cpp",
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/autospinbox.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/campus.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/canvas_history_graph_widget.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/cornerdirectionselector.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/droparea_wiz.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/src/widgets/filetablewidget.cpp",
 			"MU",
 			null
 		]
 	],
 	"UIC_OPTIONS" : [],
 	"UIC_SEARCH_PATHS" : [],
-	"UIC_SKIP" : [],
+	"UIC_SKIP" : 
+	[
+		"C:/Users/koyo0/Documents/Qt/Image_Stitcher_Auto/build/Desktop_Qt_6_10_2_MinGW_64_bit-Release/.qt/rcc/qrc_embedded_translations.cpp"
+	],
 	"UIC_UI_FILES" : [],
 	"USE_BETTER_GRAPH" : true,
 	"VERBOSITY" : 0

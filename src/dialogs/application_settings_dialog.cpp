@@ -1,28 +1,99 @@
 #include "application_settings_dialog.h"
 
 #include "app_settings.h"
+#include "metal_ssim.h"
 
+#include <QAbstractButton>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFormLayout>
+#include <QFrame>
+#include <QFont>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QPainter>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSignalBlocker>
 #include <QStackedWidget>
+#include <QStyledItemDelegate>
+#include <QStyleOptionViewItem>
 #include <QVBoxLayout>
 
 #include <opencv2/core/version.hpp>
 
 #include <algorithm>
+#include <utility>
 
 namespace
 {
+class SettingsTabDelegate final : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    QSize sizeHint(const QStyleOptionViewItem& option,
+                   const QModelIndex& index) const override
+    {
+        QSize size = QStyledItemDelegate::sizeHint(option, index);
+        size.setHeight(std::max(40, option.fontMetrics.height() + 20));
+        return size;
+    }
+
+    void paint(QPainter* painter,
+               const QStyleOptionViewItem& option,
+               const QModelIndex& index) const override
+    {
+        QStyleOptionViewItem itemOption(option);
+        initStyleOption(&itemOption, index);
+
+        const bool selected = itemOption.state & QStyle::State_Selected;
+        const bool hovered = itemOption.state & QStyle::State_MouseOver;
+        const bool enabled = itemOption.state & QStyle::State_Enabled;
+        const QPalette::ColorGroup colorGroup = !enabled
+                                                     ? QPalette::Disabled
+                                                     : (itemOption.state & QStyle::State_Active
+                                                            ? QPalette::Active
+                                                            : QPalette::Inactive);
+        const QPalette currentPalette = QApplication::palette();
+        const QRect itemRect = itemOption.rect.adjusted(3, 1, -3, -1);
+
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(Qt::NoPen);
+        if (hovered) {
+            painter->setBrush(currentPalette.brush(colorGroup, QPalette::AlternateBase));
+            painter->drawRoundedRect(itemRect, 6, 6);
+        }
+        if (selected) {
+            const QRectF indicatorRect(itemRect.left() + 1,
+                                       itemRect.top() + 8,
+                                       3,
+                                       std::max(8, itemRect.height() - 16));
+            painter->setBrush(currentPalette.brush(colorGroup, QPalette::Highlight));
+            painter->drawRoundedRect(indicatorRect, 1.5, 1.5);
+        }
+
+        QFont textFont = itemOption.font;
+        if (selected) {
+            textFont.setWeight(QFont::DemiBold);
+        }
+        painter->setFont(textFont);
+        painter->setPen(currentPalette.color(colorGroup, QPalette::Text));
+        painter->drawText(itemRect.adjusted(12, 0, -8, 0),
+                          Qt::AlignLeft | Qt::AlignVCenter,
+                          itemOption.text);
+        painter->restore();
+    }
+};
+
 QString formatBytes(quint64 bytes)
 {
     constexpr double gib = 1024.0 * 1024.0 * 1024.0;
@@ -37,76 +108,185 @@ QString formatBytes(quint64 bytes)
 ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     : QDialog(parent)
 {
-    setWindowTitle("設定");
     setModal(false);
-    resize(680, 430);
+    setMinimumSize(640, 400);
+    resize(700, 440);
 
     auto* rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(16, 16, 16, 12);
+    rootLayout->setSpacing(12);
     auto* bodyLayout = new QHBoxLayout;
+    bodyLayout->setSpacing(12);
     rootLayout->addLayout(bodyLayout, 1);
 
     tabList = new QListWidget(this);
     tabList->setObjectName("settingsTabList");
-    tabList->setFixedWidth(120);
+    tabList->setFixedWidth(132);
+    tabList->setFrameShape(QFrame::NoFrame);
+    tabList->setAutoFillBackground(false);
+    tabList->viewport()->setAutoFillBackground(false);
+    tabList->setAttribute(Qt::WA_TranslucentBackground);
+    tabList->viewport()->setAttribute(Qt::WA_TranslucentBackground);
     tabList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tabList->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tabList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tabList->setSelectionMode(QAbstractItemView::SingleSelection);
+    tabList->setSpacing(2);
+    tabList->setMouseTracking(true);
+    tabList->setItemDelegate(new SettingsTabDelegate(tabList));
     tabList->setStyleSheet(
-        "QListWidget::item { padding: 12px 16px; }"
-        "QListWidget::item:selected { font-weight: 600; }");
-    tabList->addItem("一般");
-    tabList->addItem("情報");
+        "QListWidget#settingsTabList {"
+        "  background: transparent; border: none; outline: none; padding: 3px;"
+        "}");
+    tabList->addItem(QString());
+    tabList->addItem(QString());
+    tabList->addItem(QString());
     bodyLayout->addWidget(tabList);
+
+    auto* separator = new QFrame(this);
+    separator->setFrameShape(QFrame::VLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    bodyLayout->addWidget(separator);
 
     pageStack = new QStackedWidget(this);
     bodyLayout->addWidget(pageStack, 1);
 
     auto* generalPage = new QWidget(pageStack);
     auto* generalLayout = new QVBoxLayout(generalPage);
+    generalLayout->setContentsMargins(8, 2, 4, 2);
+    generalLayout->setSpacing(14);
 
-    auto* themeGroup = new QGroupBox("テーマ", generalPage);
-    auto* themeLayout = new QFormLayout(themeGroup);
-    themeCombo = new QComboBox(themeGroup);
-    themeCombo->addItem("システム", static_cast<int>(ApplicationTheme::System));
-    themeCombo->addItem("ライト", static_cast<int>(ApplicationTheme::Light));
-    themeCombo->addItem("ダーク", static_cast<int>(ApplicationTheme::Dark));
-    themeLayout->addRow("テーマ:", themeCombo);
+    themeGroup = new QGroupBox(generalPage);
+    auto* themeLayout = new QHBoxLayout(themeGroup);
+    themeLayout->setContentsMargins(14, 12, 14, 12);
+    themeLayout->setSpacing(20);
+    themeButtonGroup = new QButtonGroup(this);
+    auto addThemeButton = [this, themeLayout](QRadioButton*& button,
+                                              ApplicationTheme theme) {
+        button = new QRadioButton(themeGroup);
+        themeButtonGroup->addButton(button, static_cast<int>(theme));
+        themeLayout->addWidget(button);
+        connect(button, &QRadioButton::toggled, this, [this, theme](bool checked) {
+            if (!checked) {
+                return;
+            }
+            AppSettings::setTheme(theme);
+            applyApplicationTheme(theme);
+            emit themeChanged();
+        });
+    };
+    addThemeButton(systemThemeButton, ApplicationTheme::System);
+    addThemeButton(lightThemeButton, ApplicationTheme::Light);
+    addThemeButton(darkThemeButton, ApplicationTheme::Dark);
+    themeLayout->addStretch(1);
     generalLayout->addWidget(themeGroup);
 
-    auto* vulkanGroup = new QGroupBox("Vulkan", generalPage);
+    languageGroup = new QGroupBox(generalPage);
+    auto* languageLayout = new QHBoxLayout(languageGroup);
+    languageLayout->setContentsMargins(14, 12, 14, 12);
+    languageLayout->setSpacing(20);
+    languageButtonGroup = new QButtonGroup(this);
+    auto addLanguageButton = [this, languageLayout](QRadioButton*& button,
+                                                    ApplicationLanguage language) {
+        button = new QRadioButton(languageGroup);
+        languageButtonGroup->addButton(button, static_cast<int>(language));
+        languageLayout->addWidget(button);
+        connect(button, &QRadioButton::toggled, this, [this, language](bool checked) {
+            if (!checked) {
+                return;
+            }
+            AppSettings::setLanguage(language);
+            applyApplicationLanguage(language);
+            emit languageChanged();
+        });
+    };
+    addLanguageButton(systemLanguageButton, ApplicationLanguage::System);
+    addLanguageButton(japaneseLanguageButton, ApplicationLanguage::Japanese);
+    addLanguageButton(englishLanguageButton, ApplicationLanguage::English);
+    languageLayout->addStretch(1);
+    generalLayout->addWidget(languageGroup);
+
+    vulkanGroup = new QGroupBox(generalPage);
     auto* vulkanLayout = new QVBoxLayout(vulkanGroup);
-    useVulkanCheck = new QCheckBox("利用可能ならVulkan GPU計算を使用する", vulkanGroup);
-    ignoreVramLimitCheck = new QCheckBox("VRAM limitを無視する", vulkanGroup);
+    vulkanLayout->setContentsMargins(14, 12, 14, 12);
+    vulkanLayout->setSpacing(9);
+    useVulkanCheck = new QCheckBox(vulkanGroup);
+    ignoreVramLimitCheck = new QCheckBox(vulkanGroup);
     vulkanLayout->addWidget(useVulkanCheck);
     vulkanLayout->addWidget(ignoreVramLimitCheck);
 
-    auto* gpuRow = new QHBoxLayout;
-    gpuRow->addWidget(new QLabel("GPU:", vulkanGroup));
+    auto* gpuRow = new QFormLayout;
+    gpuRow->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     gpuCombo = new QComboBox(vulkanGroup);
-    gpuRow->addWidget(gpuCombo, 1);
+    gpuCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    gpuCombo->setMinimumContentsLength(28);
+    gpuCombo->setMaxVisibleItems(12);
+    gpuCaptionLabel = new QLabel(vulkanGroup);
+    gpuRow->addRow(gpuCaptionLabel, gpuCombo);
     vulkanLayout->addLayout(gpuRow);
 
     vulkanStatusLabel = new QLabel(vulkanGroup);
     vulkanStatusLabel->setWordWrap(true);
+    vulkanStatusLabel->setForegroundRole(QPalette::PlaceholderText);
     vulkanLayout->addWidget(vulkanStatusLabel);
     generalLayout->addWidget(vulkanGroup);
     generalLayout->addStretch(1);
     pageStack->addWidget(generalPage);
 
+    auto* resetPage = new QWidget(pageStack);
+    auto* resetPageLayout = new QVBoxLayout(resetPage);
+    resetPageLayout->setContentsMargins(8, 2, 4, 2);
+    resetGroup = new QGroupBox(resetPage);
+    auto* resetLayout = new QVBoxLayout(resetGroup);
+    resetLayout->setContentsMargins(14, 12, 14, 12);
+    resetLayout->setSpacing(8);
+
+    auto addResetButton = [this, resetLayout](QPushButton*& button,
+                                               SettingsResetCategory category) {
+        button = new QPushButton(resetGroup);
+        button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        resetLayout->addWidget(button);
+        connect(button, &QPushButton::clicked, this, [this, category]() {
+            emit resetRequested(category);
+        });
+    };
+    addResetButton(resetAllButton, SettingsResetCategory::All);
+    addResetButton(resetApplicationButton,
+                   SettingsResetCategory::ApplicationDialog);
+    addResetButton(resetAlignmentButton, SettingsResetCategory::Alignment);
+    addResetButton(resetLayoutButton, SettingsResetCategory::Layout);
+    addResetButton(resetLeastSquaresButton,
+                   SettingsResetCategory::LeastSquares);
+    addResetButton(resetTrwsPamiButton, SettingsResetCategory::TrwsPami);
+    addResetButton(resetImageMergeButton, SettingsResetCategory::ImageMerge);
+    resetPageLayout->addWidget(resetGroup);
+    resetPageLayout->addStretch(1);
+    pageStack->addWidget(resetPage);
+
     auto* informationPage = new QWidget(pageStack);
     auto* informationLayout = new QFormLayout(informationPage);
     informationLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    informationLayout->addRow("アプリケーション:",
+    informationApplicationCaption = new QLabel(informationPage);
+    informationVersionCaption = new QLabel(informationPage);
+    informationQtCaption = new QLabel(informationPage);
+    informationOpenCvCaption = new QLabel(informationPage);
+    informationVulkanCaption = new QLabel(informationPage);
+    informationLayout->addRow(informationApplicationCaption,
                               new QLabel(QCoreApplication::applicationName(), informationPage));
-    informationLayout->addRow("バージョン:",
+    informationLayout->addRow(informationVersionCaption,
                               new QLabel(QCoreApplication::applicationVersion(), informationPage));
-    informationLayout->addRow("Qt:", new QLabel(QString::fromLatin1(qVersion()), informationPage));
-    informationLayout->addRow("OpenCV:", new QLabel(QString::fromLatin1(CV_VERSION), informationPage));
+    informationLayout->addRow(informationQtCaption,
+                              new QLabel(QString::fromLatin1(qVersion()), informationPage));
+    informationLayout->addRow(informationOpenCvCaption,
+                              new QLabel(QString::fromLatin1(CV_VERSION), informationPage));
     informationVulkanLabel = new QLabel(informationPage);
     informationVulkanLabel->setWordWrap(true);
-    informationLayout->addRow("Vulkan:", informationVulkanLabel);
+    informationVulkanLabel->setForegroundRole(QPalette::PlaceholderText);
+    informationLayout->addRow(informationVulkanCaption, informationVulkanLabel);
     pageStack->addWidget(informationPage);
 
     auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    closeButton = buttonBox->button(QDialogButtonBox::Close);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::close);
     rootLayout->addWidget(buttonBox);
 
@@ -114,23 +294,9 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
             pageStack, &QStackedWidget::setCurrentIndex);
     tabList->setCurrentRow(0);
 
-    const ApplicationTheme currentTheme = AppSettings::theme();
-    const int themeIndex = themeCombo->findData(static_cast<int>(currentTheme));
-    themeCombo->setCurrentIndex(std::max(0, themeIndex));
-
-    const VulkanExecutionOptions options = AppSettings::vulkanOptions();
-    useVulkanCheck->setChecked(options.enabled);
-    ignoreVramLimitCheck->setChecked(options.ignoreVramLimit);
-
-    connect(themeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int index) {
-        const auto theme = static_cast<ApplicationTheme>(themeCombo->itemData(index).toInt());
-        AppSettings::setTheme(theme);
-        applyApplicationTheme(theme);
-        emit themeChanged();
-    });
-    connect(useVulkanCheck, &QCheckBox::toggled, this, [](bool enabled) {
+    connect(useVulkanCheck, &QCheckBox::toggled, this, [this](bool enabled) {
         AppSettings::setVulkanEnabled(enabled);
+        updateVulkanControls();
     });
     connect(ignoreVramLimitCheck, &QCheckBox::toggled, this, [](bool ignore) {
         AppSettings::setIgnoreVramLimit(ignore);
@@ -142,6 +308,102 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
         }
     });
 
+    reloadFromSettings();
+    retranslateUi();
+    updateVulkanControls();
+    updateVulkanStatusText();
+}
+
+void ApplicationSettingsDialog::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+        updateVulkanStatusText();
+    }
+}
+
+void ApplicationSettingsDialog::retranslateUi()
+{
+    setWindowTitle(tr("設定"));
+    tabList->item(0)->setText(tr("一般"));
+    tabList->item(1)->setText(tr("リセット"));
+    tabList->item(2)->setText(tr("情報"));
+
+    themeGroup->setTitle(tr("テーマ"));
+    systemThemeButton->setText(tr("システム"));
+    lightThemeButton->setText(tr("ライト"));
+    darkThemeButton->setText(tr("ダーク"));
+
+    languageGroup->setTitle(tr("言語"));
+    systemLanguageButton->setText(tr("システム"));
+    japaneseLanguageButton->setText(tr("日本語"));
+    englishLanguageButton->setText(tr("英語"));
+
+    const bool metalBuild = MetalSsimEngine::isBuilt();
+    vulkanGroup->setTitle(metalBuild ? tr("GPU計算") : tr("Vulkan"));
+    useVulkanCheck->setText(
+        metalBuild ? tr("利用可能ならMetal GPU計算を使用する")
+                   : tr("利用可能ならVulkan GPU計算を使用する"));
+    ignoreVramLimitCheck->setText(tr("VRAM limitを無視する"));
+    gpuCaptionLabel->setText(tr("使用するGPU:"));
+
+    resetGroup->setTitle(tr("デフォルト設定にリセット"));
+    resetAllButton->setText(tr("全て"));
+    resetApplicationButton->setText(tr("設定ダイアログ"));
+    resetAlignmentButton->setText(tr("画像の重なりの目安"));
+    resetLayoutButton->setText(tr("レイアウト"));
+    resetLeastSquaresButton->setText(
+        tr("位置合わせ最適化（最小二乗法）"));
+    resetTrwsPamiButton->setText(
+        tr("位置合わせ最適化（TRW-S-PAMI）"));
+    resetImageMergeButton->setText(tr("画像を作成"));
+
+    informationApplicationCaption->setText(tr("アプリケーション:"));
+    informationVersionCaption->setText(tr("バージョン:"));
+    informationQtCaption->setText(tr("Qt:"));
+    informationOpenCvCaption->setText(tr("OpenCV:"));
+    informationVulkanCaption->setText(metalBuild ? tr("GPU計算:") : tr("Vulkan:"));
+    closeButton->setText(tr("閉じる"));
+}
+
+void ApplicationSettingsDialog::reloadFromSettings()
+{
+    const QSignalBlocker systemThemeBlocker(systemThemeButton);
+    const QSignalBlocker lightThemeBlocker(lightThemeButton);
+    const QSignalBlocker darkThemeBlocker(darkThemeButton);
+    const QSignalBlocker systemLanguageBlocker(systemLanguageButton);
+    const QSignalBlocker japaneseLanguageBlocker(japaneseLanguageButton);
+    const QSignalBlocker englishLanguageBlocker(englishLanguageButton);
+    const QSignalBlocker vulkanBlocker(useVulkanCheck);
+    const QSignalBlocker limitBlocker(ignoreVramLimitCheck);
+    const QSignalBlocker gpuBlocker(gpuCombo);
+
+    const ApplicationTheme currentTheme = AppSettings::theme();
+    if (QAbstractButton* currentThemeButton =
+            themeButtonGroup->button(static_cast<int>(currentTheme))) {
+        currentThemeButton->setChecked(true);
+    }
+
+    const ApplicationLanguage currentLanguage = AppSettings::language();
+    if (QAbstractButton* currentLanguageButton =
+            languageButtonGroup->button(static_cast<int>(currentLanguage))) {
+        currentLanguageButton->setChecked(true);
+    }
+
+    const VulkanExecutionOptions options = AppSettings::vulkanOptions();
+    useVulkanCheck->setChecked(options.enabled);
+    ignoreVramLimitCheck->setChecked(options.ignoreVramLimit);
+    int gpuIndex = gpuCombo->findData(options.deviceKey);
+    if (gpuIndex < 0 && gpuCombo->count() > 0) {
+        gpuIndex = 0;
+    }
+    if (gpuIndex >= 0) {
+        gpuCombo->setCurrentIndex(gpuIndex);
+    }
+
+    applyApplicationTheme(currentTheme);
+    applyApplicationLanguage(currentLanguage);
     updateVulkanControls();
     updateVulkanStatusText();
 }
@@ -178,9 +440,6 @@ void ApplicationSettingsDialog::setVulkanScanResult(const VulkanDeviceScanResult
         selectedIndex = 0;
     }
     gpuCombo->setCurrentIndex(selectedIndex);
-    if (selectedIndex >= 0) {
-        AppSettings::setVulkanDeviceKey(gpuCombo->itemData(selectedIndex).toString());
-    }
 
     updateVulkanControls();
     updateVulkanStatusText();
@@ -188,25 +447,35 @@ void ApplicationSettingsDialog::setVulkanScanResult(const VulkanDeviceScanResult
 
 void ApplicationSettingsDialog::updateVulkanControls()
 {
-    const bool available = !detectionInProgress && !scanResult.devices.isEmpty();
+    const bool metalAvailable = MetalSsimEngine::isBuilt()
+                                && MetalSsimEngine::isAvailable();
+    const bool vulkanAvailable = !detectionInProgress
+                                 && !scanResult.devices.isEmpty();
+    const bool available = metalAvailable || vulkanAvailable;
     useVulkanCheck->setEnabled(available);
-    ignoreVramLimitCheck->setEnabled(available);
-    gpuCombo->setEnabled(available);
+    const bool detailsEnabled = available && useVulkanCheck->isChecked();
+    ignoreVramLimitCheck->setEnabled(detailsEnabled);
+    gpuCaptionLabel->setVisible(!metalAvailable);
+    gpuCombo->setVisible(!metalAvailable);
+    gpuCombo->setEnabled(detailsEnabled && !metalAvailable);
 }
 
 void ApplicationSettingsDialog::updateVulkanStatusText()
 {
     QString status;
-    if (!VulkanSsimEngine::isBuilt()) {
-        status = "このビルドではVulkan計算が無効です。CPU計算を使用します。";
+    if (MetalSsimEngine::isBuilt() && MetalSsimEngine::isAvailable()) {
+        status = tr("Metal GPU「%1」を検出しました。メモリ上限は推奨ワーキングセットの70%です。")
+                     .arg(MetalSsimEngine::deviceName());
+    } else if (!VulkanSsimEngine::isBuilt()) {
+        status = tr("このビルドではVulkan計算が無効です。CPU計算を使用します。");
     } else if (detectionInProgress) {
-        status = "GPUを検出中…";
+        status = tr("GPUを検出中…");
     } else if (!scanResult.error.isEmpty()) {
-        status = scanResult.error + " CPU計算を使用します。";
+        status = scanResult.error + tr(" CPU計算を使用します。");
     } else if (scanResult.devices.isEmpty()) {
-        status = "計算に利用できるVulkan GPUが見つかりません。CPU計算を使用します。";
+        status = tr("計算に利用できるVulkan GPUが見つかりません。CPU計算を使用します。");
     } else {
-        status = QString("%1台のVulkan GPUを検出しました。VRAM上限は選択GPUの70%です。")
+        status = tr("%1台のVulkan GPUを検出しました。VRAM上限は選択GPUの70%です。")
                      .arg(scanResult.devices.size());
     }
     vulkanStatusLabel->setText(status);

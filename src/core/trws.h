@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <functional>
 
 struct TRWSResult {
     std::vector<int> labels;               // 0..K-1
@@ -10,6 +11,7 @@ struct TRWSResult {
     double reward = 0.0;                   // = -energy
     std::vector<double> lowerBoundHistory;
     int iterations = 0;
+    bool cancelled = false;
 };
 
 class TRWS {
@@ -18,6 +20,7 @@ public:
         int maxIter = 200;
         double tol = 1e-9;
         int stallIters = 10;
+        std::function<bool()> shouldCancel;
     };
 
     TRWS(

@@ -3,6 +3,7 @@
 #include "vulkan_ssim_shader.h"
 
 #include <QByteArray>
+#include <QCoreApplication>
 
 #include <opencv2/imgproc.hpp>
 
@@ -23,10 +24,11 @@ namespace
 constexpr uint32_t kLocalSize = 128;
 constexpr quint64 kVramSafetyPercent = 70;
 
-QString vkError(const char* operation, VkResult result)
+QString vkError(const QString& operation, VkResult result)
 {
-    return QString("%1に失敗しました (VkResult=%2)。")
-        .arg(QString::fromLatin1(operation))
+    return QCoreApplication::translate(
+               "VulkanSsimEngine", "%1に失敗しました (VkResult=%2)。")
+        .arg(operation)
         .arg(static_cast<int>(result));
 }
 
@@ -80,7 +82,8 @@ bool createInstance(VkInstance& instance, QString& error)
 
     const VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkanインスタンスの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkanインスタンスの作成"), result);
         return false;
     }
     return true;
@@ -125,7 +128,8 @@ std::vector<DeviceCandidate> enumerateCandidates(VkInstance instance, QString& e
     uint32_t count = 0;
     VkResult result = vkEnumeratePhysicalDevices(instance, &count, nullptr);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan GPUの列挙", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan GPUの列挙"), result);
         return {};
     }
     if (count == 0) {
@@ -135,7 +139,8 @@ std::vector<DeviceCandidate> enumerateCandidates(VkInstance instance, QString& e
     std::vector<VkPhysicalDevice> devices(count);
     result = vkEnumeratePhysicalDevices(instance, &count, devices.data());
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan GPUの列挙", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan GPUの列挙"), result);
         return {};
     }
 
@@ -222,7 +227,8 @@ bool buildContext(const QString& preferredDeviceKey,
         return false;
     }
     if (candidates.empty()) {
-        error = "計算に利用できるVulkan GPUが見つかりません。";
+        error = QCoreApplication::translate(
+            "VulkanSsimEngine", "計算に利用できるVulkan GPUが見つかりません。");
         return false;
     }
 
@@ -258,7 +264,8 @@ bool buildContext(const QString& preferredDeviceKey,
     VkResult result = vkCreateDevice(candidateContext->physicalDevice,
                                      &deviceInfo, nullptr, &candidateContext->device);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan論理デバイスの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan論理デバイスの作成"), result);
         return false;
     }
     vkGetDeviceQueue(candidateContext->device, candidateContext->queueFamily,
@@ -280,7 +287,8 @@ bool buildContext(const QString& preferredDeviceKey,
                                          &descriptorLayoutInfo, nullptr,
                                          &candidateContext->descriptorSetLayout);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan descriptor layoutの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan descriptor layoutの作成"), result);
         return false;
     }
 
@@ -298,13 +306,15 @@ bool buildContext(const QString& preferredDeviceKey,
     result = vkCreatePipelineLayout(candidateContext->device, &pipelineLayoutInfo,
                                     nullptr, &candidateContext->pipelineLayout);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan pipeline layoutの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan pipeline layoutの作成"), result);
         return false;
     }
 
     const QByteArray shaderBytes = QByteArray::fromBase64(kVulkanSsimShaderBase64);
     if (shaderBytes.isEmpty() || shaderBytes.size() % 4 != 0) {
-        error = "組み込みVulkanシェーダーが不正です。";
+        error = QCoreApplication::translate(
+            "VulkanSsimEngine", "組み込みVulkanシェーダーが不正です。");
         return false;
     }
     std::vector<uint32_t> shaderCode(static_cast<size_t>(shaderBytes.size()) / 4);
@@ -317,7 +327,8 @@ bool buildContext(const QString& preferredDeviceKey,
     VkShaderModule shaderModule = VK_NULL_HANDLE;
     result = vkCreateShaderModule(candidateContext->device, &shaderInfo, nullptr, &shaderModule);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan shader moduleの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan shader moduleの作成"), result);
         return false;
     }
 
@@ -335,7 +346,8 @@ bool buildContext(const QString& preferredDeviceKey,
                                       &pipelineInfo, nullptr, &candidateContext->pipeline);
     vkDestroyShaderModule(candidateContext->device, shaderModule, nullptr);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan compute pipelineの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan compute pipelineの作成"), result);
         return false;
     }
 
@@ -350,7 +362,8 @@ bool buildContext(const QString& preferredDeviceKey,
     result = vkCreateDescriptorPool(candidateContext->device, &poolInfo, nullptr,
                                     &candidateContext->descriptorPool);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan descriptor poolの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan descriptor poolの作成"), result);
         return false;
     }
 
@@ -362,7 +375,8 @@ bool buildContext(const QString& preferredDeviceKey,
     result = vkAllocateDescriptorSets(candidateContext->device, &setInfo,
                                       &candidateContext->descriptorSet);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan descriptor setの割り当て", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan descriptor setの割り当て"), result);
         return false;
     }
 
@@ -374,7 +388,8 @@ bool buildContext(const QString& preferredDeviceKey,
     result = vkCreateCommandPool(candidateContext->device, &commandPoolInfo,
                                  nullptr, &candidateContext->commandPool);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan command poolの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan command poolの作成"), result);
         return false;
     }
 
@@ -445,7 +460,8 @@ bool prepareBuffer(VulkanContext& context,
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VkResult result = vkCreateBuffer(context.device, &bufferInfo, nullptr, &output.buffer);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan bufferの作成", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan bufferの作成"), result);
         return false;
     }
 
@@ -454,7 +470,8 @@ bool prepareBuffer(VulkanContext& context,
                                           output.requirements.memoryTypeBits,
                                           memoryFlags);
     if (memoryType < 0) {
-        error = "必要なVulkanメモリ形式が見つかりません。";
+        error = QCoreApplication::translate(
+            "VulkanSsimEngine", "必要なVulkanメモリ形式が見つかりません。");
         return false;
     }
     output.memoryType = static_cast<uint32_t>(memoryType);
@@ -469,12 +486,14 @@ bool allocateBuffer(VulkanContext& context, BufferAllocation& buffer, QString& e
     allocationInfo.memoryTypeIndex = buffer.memoryType;
     VkResult result = vkAllocateMemory(context.device, &allocationInfo, nullptr, &buffer.memory);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan memoryの割り当て", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan memoryの割り当て"), result);
         return false;
     }
     result = vkBindBufferMemory(context.device, buffer.buffer, buffer.memory, 0);
     if (result != VK_SUCCESS) {
-        error = vkError("Vulkan buffer memoryの関連付け", result);
+        error = vkError(QCoreApplication::translate(
+                            "VulkanSsimEngine", "Vulkan buffer memoryの関連付け"), result);
         return false;
     }
     return true;
@@ -539,7 +558,8 @@ VulkanSsimBatchResult computeBatchLocked(
     if (!gContext) {
         output.status = VulkanSsimStatus::NoDevice;
         output.message = gContextError.isEmpty()
-                             ? "Vulkan GPUを初期化できませんでした。"
+                             ? QCoreApplication::translate(
+                                   "VulkanSsimEngine", "Vulkan GPUを初期化できませんでした。")
                              : gContextError;
         return output;
     }
@@ -549,7 +569,8 @@ VulkanSsimBatchResult computeBatchLocked(
     const cv::Mat secondGray = toGrayFloat(secondBgra);
     if (firstGray.empty() || secondGray.empty()) {
         output.status = VulkanSsimStatus::Unsupported;
-        output.message = "Vulkan SSIMで扱えない画像形式です。";
+        output.message = QCoreApplication::translate(
+            "VulkanSsimEngine", "Vulkan SSIMで扱えない画像形式です。");
         return output;
     }
 
@@ -558,7 +579,8 @@ VulkanSsimBatchResult computeBatchLocked(
     const quint64 totalPixels = firstPixels + secondPixels;
     if (totalPixels > std::numeric_limits<uint32_t>::max()) {
         output.status = VulkanSsimStatus::Unsupported;
-        output.message = "画像がVulkan SSIMの32-bit index上限を超えています。";
+        output.message = QCoreApplication::translate(
+            "VulkanSsimEngine", "画像がVulkan SSIMの32-bit index上限を超えています。");
         return output;
     }
 
@@ -621,7 +643,8 @@ VulkanSsimBatchResult computeBatchLocked(
     }
     if (jobs.size() > std::numeric_limits<uint32_t>::max()) {
         output.status = VulkanSsimStatus::Unsupported;
-        output.message = "Vulkan SSIMのworkgroup数上限を超えています。";
+        output.message = QCoreApplication::translate(
+            "VulkanSsimEngine", "Vulkan SSIMのworkgroup数上限を超えています。");
         return output;
     }
 
@@ -632,7 +655,8 @@ VulkanSsimBatchResult computeBatchLocked(
     if (pixelBytes > maxStorageRange || jobBytes > maxStorageRange
         || resultBytes > maxStorageRange) {
         output.status = VulkanSsimStatus::Unsupported;
-        output.message = "必要なstorage bufferが選択GPUの上限を超えています。";
+        output.message = QCoreApplication::translate(
+            "VulkanSsimEngine", "必要なstorage bufferが選択GPUの上限を超えています。");
         return output;
     }
 
@@ -691,7 +715,8 @@ VulkanSsimBatchResult computeBatchLocked(
     if (!ignoreVramLimit && requiredLocalBytes > safeLimit) {
         cleanup();
         output.status = VulkanSsimStatus::VramLimitExceeded;
-        output.message = "Vulkan計算のVRAM見積もりが安全上限を超えました。";
+        output.message = QCoreApplication::translate(
+            "VulkanSsimEngine", "Vulkan計算のVRAM見積もりが安全上限を超えました。");
         return output;
     }
 
@@ -714,7 +739,8 @@ VulkanSsimBatchResult computeBatchLocked(
     if (result != VK_SUCCESS) {
         cleanup();
         output.status = VulkanSsimStatus::Failed;
-        output.message = vkError("pixel staging memoryのmap", result);
+        output.message = vkError(QCoreApplication::translate(
+                                     "VulkanSsimEngine", "pixel staging memoryのmap"), result);
         return output;
     }
 
@@ -726,7 +752,8 @@ VulkanSsimBatchResult computeBatchLocked(
     if (result != VK_SUCCESS) {
         cleanup();
         output.status = VulkanSsimStatus::Failed;
-        output.message = vkError("job staging memoryのmap", result);
+        output.message = vkError(QCoreApplication::translate(
+                                     "VulkanSsimEngine", "job staging memoryのmap"), result);
         return output;
     }
 
@@ -755,7 +782,8 @@ VulkanSsimBatchResult computeBatchLocked(
     if (result != VK_SUCCESS) {
         cleanup();
         output.status = VulkanSsimStatus::Failed;
-        output.message = vkError("Vulkan command bufferの割り当て", result);
+        output.message = vkError(QCoreApplication::translate(
+                                     "VulkanSsimEngine", "Vulkan command bufferの割り当て"), result);
         return output;
     }
 
@@ -767,7 +795,8 @@ VulkanSsimBatchResult computeBatchLocked(
         vkFreeCommandBuffers(context.device, context.commandPool, 1, &commandBuffer);
         cleanup();
         output.status = VulkanSsimStatus::Failed;
-        output.message = vkError("Vulkan command bufferの開始", result);
+        output.message = vkError(QCoreApplication::translate(
+                                     "VulkanSsimEngine", "Vulkan command bufferの開始"), result);
         return output;
     }
 
@@ -807,7 +836,8 @@ VulkanSsimBatchResult computeBatchLocked(
         vkFreeCommandBuffers(context.device, context.commandPool, 1, &commandBuffer);
         cleanup();
         output.status = VulkanSsimStatus::Unsupported;
-        output.message = "Vulkan dispatchのworkgroup上限を超えています。";
+        output.message = QCoreApplication::translate(
+            "VulkanSsimEngine", "Vulkan dispatchのworkgroup上限を超えています。");
         return output;
     }
     const uint32_t rowCount = static_cast<uint32_t>(rowCount64);
@@ -848,7 +878,8 @@ VulkanSsimBatchResult computeBatchLocked(
         vkFreeCommandBuffers(context.device, context.commandPool, 1, &commandBuffer);
         cleanup();
         output.status = VulkanSsimStatus::Failed;
-        output.message = vkError("Vulkan SSIM commandの実行", result);
+        output.message = vkError(QCoreApplication::translate(
+                                     "VulkanSsimEngine", "Vulkan SSIM commandの実行"), result);
         return output;
     }
 
@@ -863,7 +894,8 @@ VulkanSsimBatchResult computeBatchLocked(
     cleanup();
     if (result != VK_SUCCESS) {
         output.status = VulkanSsimStatus::Failed;
-        output.message = vkError("result staging memoryのmap", result);
+        output.message = vkError(QCoreApplication::translate(
+                                     "VulkanSsimEngine", "result staging memoryのmap"), result);
         return output;
     }
 
@@ -929,7 +961,8 @@ bool VulkanSsimEngine::isBuilt()
 VulkanDeviceScanResult VulkanSsimEngine::detectDevices()
 {
     VulkanDeviceScanResult result;
-    result.error = "このビルドではVulkanサポートが有効ではありません。";
+    result.error = QCoreApplication::translate(
+        "VulkanSsimEngine", "このビルドではVulkanサポートが有効ではありません。");
     return result;
 }
 
@@ -943,7 +976,8 @@ VulkanSsimBatchResult VulkanSsimEngine::computeBatch(
     VulkanSsimBatchResult result;
     result.status = VulkanSsimStatus::NotBuilt;
     result.scores.assign(rois.size(), 0.0);
-    result.message = "このビルドではVulkanサポートが有効ではありません。";
+    result.message = QCoreApplication::translate(
+        "VulkanSsimEngine", "このビルドではVulkanサポートが有効ではありません。");
     return result;
 }
 

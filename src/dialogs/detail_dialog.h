@@ -14,7 +14,11 @@ public:
 
     void setModel(QAbstractItemModel* model); // 返り値不要、表示用にセットするだけ
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
+    void retranslateHeaders();
     QTableView* table = nullptr;
     QDialogButtonBox* buttons = nullptr;
 };

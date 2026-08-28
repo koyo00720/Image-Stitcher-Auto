@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QString>
 #include <QColor>
+#include <QMessageBox>
 
 #include <opencv2/core.hpp>
 #include "app_settings.h"
@@ -17,6 +18,8 @@
 #include "detail_opti_dialog.h"
 #include "vulkan_ssim.h"
 #include <functional>
+#include <atomic>
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -28,12 +31,24 @@ class QLabel;
 class CornerDirectionSelector;
 class detail_opti_dialog;
 class QDialog;
+class QAction;
+class QEvent;
+class QMenu;
 class QProgressBar;
+class QCheckBox;
+class QColorDialog;
+class QFileDialog;
 class QScrollArea;
 class QLineEdit;
 class QPushButton;
+class QTimer;
 class QGraphicsRectItem;
 class ApplicationSettingsDialog;
+class FileInputDialog;
+class opti_settings;
+class least_squares_settings;
+class merge_settings;
+enum class SettingsResetCategory;
 
 struct return_struct1 {
     double score = 0.0;
@@ -69,6 +84,7 @@ struct ifft_thread_input {
     QSize px2;
     QPoint pos2;
     int calc_loop_num;
+    std::shared_ptr<std::atomic_bool> cancelRequested;
 };
 // iFFT 1スレッドの出力
 struct ifft_thread_output {
@@ -81,6 +97,7 @@ struct ifft_thread_output {
     int loop_num; // ループ計算回数
     double ssim;
     bool calc_error = false; // OpenCV計算例外
+    bool cancelled = false;
 };
 
 struct CalcTRWSinput
@@ -101,6 +118,7 @@ struct CalcTRWSinput
     int all_opti;
     int all_itr;
     VulkanExecutionOptions vulkan;
+    std::shared_ptr<std::atomic_bool> cancelRequested;
     std::function<void(int, int, const QString&)> progressCallback;
 };
 
@@ -129,6 +147,7 @@ struct CalcTRWSoutput {
     std::vector<out_log> log;
     QVector<QPoint> poss;
     std::string err;
+    bool cancelled = false;
 };
 
 struct LeastSquaresStitchSettings {
@@ -154,6 +173,7 @@ struct CalcLeastSquaresInput {
     QVector<QPoint> poss;
     int calc_loop_num = 5;
     LeastSquaresStitchSettings settings;
+    std::shared_ptr<std::atomic_bool> cancelRequested;
     std::function<void(int, int, const QString&)> progressCallback;
 };
 
@@ -182,6 +202,7 @@ struct CalcLeastSquaresOutput {
     double maxError = 0.0;
     double minSsim = 0.0;
     std::string err;
+    bool cancelled = false;
 };
 
 class MainWindow : public QMainWindow
@@ -204,6 +225,7 @@ public:
     void set_array_value(int, int, int);
     void set_zigzag_value(int);
     void set_opti_value(int,int,int,int,int,int,int,int,int);
+    void set_canvas_state(bool layoutLocked, bool useCanvasAsSource);
     void run_manual(int);
     void cli_make_image() {make_image();}
     void set_output_path(QString);
@@ -236,9 +258,11 @@ private slots:
     void show_detail_opti();
     void show_detail_least_squares();
     void show_application_settings();
+    void showCanvasBackgroundDialog();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -277,6 +301,7 @@ private:
 
     // 各画像の透明度を保持
     QVector<int> toumeido;
+    int defaultImageOpacity = 0;
 
     // 画像配列関数
     void photo_Arrange();
@@ -311,9 +336,37 @@ private:
     void clearImageHighlightRects();
     void rebuildImageHighlights();
     void startDelayedVulkanDetection();
-    void showOptimizationProgressDialog();
-    void updateOptimizationProgress(int value, int maximum, const QString& text);
-    void hideOptimizationProgressDialog();
+    void applyCanvasBackgroundSetting(const QString& setting);
+    void retranslateDynamicUi();
+    void showCalculationProgressDialog(const QString& title,
+                                       const QString& computePath,
+                                       int maximum = 0);
+    void updateCalculationProgress(int value, int maximum, const QString& text);
+    void hideCalculationProgressDialog();
+    void cancelCurrentCalculation();
+    bool calculationCancellationRequested() const;
+    void setCalculationUiLocked(bool locked);
+    void finishCancelledCalculation(const QString& resultText);
+    void readOptimizationSettingsDialog();
+    void readLeastSquaresSettingsDialog();
+    void readMergeSettingsDialog();
+    void persistAlignmentSettings();
+    void persistArrangementSettings();
+    void persistControlPanelWidth();
+    void scheduleSettingsPersistence();
+    void handleSettingsReset(SettingsResetCategory category);
+    void handleCanvasFilesDropped(const QStringList& paths);
+    void trackDialogSize(QDialog* dialog,
+                         const QString& key,
+                         const QSize& defaultSize);
+    void saveTrackedWindowSizes();
+    void resetOpenWindowSizes();
+    bool savePngToPath(const QString& path);
+    void showNonModalMessage(QMessageBox::Icon icon,
+                             const QString& title,
+                             const QString& text,
+                             QWidget* parent = nullptr);
+    QString selectedOptimizationComputePath() const;
     QString formatDuration(qint64 milliseconds) const;
     int sceneSelectionAnchor = -1;
     QVector<QPoint> sceneMousePressPositions;
@@ -324,17 +377,37 @@ private:
     QDialog* canvasHistoryDialog = nullptr;
     CanvasHistoryGraphWidget* canvasHistoryGraphWidget = nullptr;
     QScrollArea* canvasHistoryScrollArea = nullptr;
+    QVector<QLabel*> canvasHistoryLegendLabels;
     QDialog* imageHighlightDialog = nullptr;
+    QLabel* imageHighlightIdLabel = nullptr;
     QLineEdit* imageHighlightEdit = nullptr;
     QPushButton* imageHighlightColorButton = nullptr;
+    QPushButton* imageHighlightApplyButton = nullptr;
+    QPushButton* imageHighlightClearButton = nullptr;
     QColor imageHighlightColor = QColor(255, 64, 64);
     QVector<int> imageHighlightIndices;
     QVector<QGraphicsRectItem*> imageHighlightRects;
 
     ApplicationSettingsDialog* applicationSettingsDialog = nullptr;
+    FileInputDialog* fileInputDialog = nullptr;
+    opti_settings* optimizationSettingsDialog = nullptr;
+    least_squares_settings* leastSquaresSettingsDialog = nullptr;
+    merge_settings* mergeSettingsDialog = nullptr;
+    QAction* applicationSettingsAction = nullptr;
+    QMenu* canvasMenu = nullptr;
+    QAction* canvasBackgroundAction = nullptr;
+    QColor canvasBackgroundColor = Qt::black;
+    bool canvasBackgroundIsTransparent = false;
+    QDialog* canvasBackgroundDialog = nullptr;
+    QColorDialog* canvasBackgroundColorPicker = nullptr;
+    QCheckBox* canvasNoColorCheck = nullptr;
     QFutureWatcher<VulkanDeviceScanResult>* vulkanScanWatcher = nullptr;
     VulkanDeviceScanResult vulkanScanResult;
     bool vulkanDetectionInProgress = false;
+    QHash<QDialog*, QString> trackedDialogSizeKeys;
+    QHash<QDialog*, QSize> trackedDialogDefaultSizes;
+    bool suppressSettingsPersistence = false;
+    QTimer* settingsPersistenceTimer = nullptr;
 
     int calc_loop_num = 5; // 最大5回ループ計算する
 
@@ -349,6 +422,8 @@ private:
 
     // 折り返しの選択
     bool orikaeshi = true; // ジグザグ
+    int configuredHorizontalImageCount = 0;
+    int configuredVerticalImageCount = 0;
 
     // iFFT watcher
     QFutureWatcher<ifft_thread_output> watcher;
@@ -375,6 +450,7 @@ private:
 
     // 拡大率表示
     QLabel *zoomLabel = nullptr;
+    QLabel *statusMessageLabel = nullptr;
     void updateZoomLabel();
 
     // SSIM入力値を保存
@@ -456,13 +532,21 @@ private:
     // 計算状態制御用
     bool calc1_finished_state = false;
     bool calc2_finished_state = false;
+    bool calc1FinishedBeforeCalculation = false;
 
     detail_opti_dialog* m_detailDialog = nullptr;
 
-    QDialog* optimizationProgressDialog = nullptr;
-    QLabel* optimizationProgressLabel = nullptr;
-    QProgressBar* optimizationProgressBar = nullptr;
-    QElapsedTimer optimizationProgressTimer;
+    QDialog* calculationProgressDialog = nullptr;
+    QLabel* calculationProgressLabel = nullptr;
+    QLabel* calculationComputePathLabel = nullptr;
+    QProgressBar* calculationProgressBar = nullptr;
+    QPushButton* calculationCancelButton = nullptr;
+    QElapsedTimer calculationProgressTimer;
+    std::shared_ptr<std::atomic_bool> calculationCancelRequested;
+    QHash<QWidget*, bool> calculationControlStates;
+    bool applicationSettingsActionEnabledBeforeCalculation = true;
+    bool calculationUiLocked = false;
+    bool layoutLockedBeforeCalculation = false;
 
     bool cal_opti = false;
 };

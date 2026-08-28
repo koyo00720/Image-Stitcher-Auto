@@ -5,13 +5,14 @@
 #include <QSortFilterProxyModel>
 #include <QVBoxLayout>
 #include <QSizePolicy>
+#include <QEvent>
 
 detail_opti_dialog::detail_opti_dialog(QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::detail_opti_dialog)
 {
     ui->setupUi(this);
-    setWindowTitle("最適化結果");
+    setWindowTitle(tr("最適化結果"));
     m_tableModel = new QStandardItemModel(this);
     ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableView->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -46,6 +47,16 @@ detail_opti_dialog::~detail_opti_dialog()
     delete ui;
 }
 
+void detail_opti_dialog::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+        setWindowTitle(tr("最適化結果"));
+        refreshUi();
+    }
+}
+
 void detail_opti_dialog::setData(out_detail det,out_log log)
 {
     one_line now;
@@ -67,19 +78,19 @@ void detail_opti_dialog::refreshUi()
     m_tableModel->setColumnCount(9);
     m_tableModel->setRowCount(N);
 
-    m_tableModel->setHeaderData(0, Qt::Horizontal, "部分/全体");
-    m_tableModel->setHeaderData(1, Qt::Horizontal, "画像 start ID");
-    m_tableModel->setHeaderData(2, Qt::Horizontal, "画像 end ID");
-    m_tableModel->setHeaderData(3, Qt::Horizontal, "計算回数");
-    m_tableModel->setHeaderData(4, Qt::Horizontal, "ループ回数");
+    m_tableModel->setHeaderData(0, Qt::Horizontal, tr("部分/全体"));
+    m_tableModel->setHeaderData(1, Qt::Horizontal, tr("画像 start ID"));
+    m_tableModel->setHeaderData(2, Qt::Horizontal, tr("画像 end ID"));
+    m_tableModel->setHeaderData(3, Qt::Horizontal, tr("計算回数"));
+    m_tableModel->setHeaderData(4, Qt::Horizontal, tr("ループ回数"));
     m_tableModel->setHeaderData(5, Qt::Horizontal, "PAMI energy");
-    m_tableModel->setHeaderData(6, Qt::Horizontal, "収束");
-    m_tableModel->setHeaderData(7, Qt::Horizontal, "低 SSIM エッジ数");
-    m_tableModel->setHeaderData(8, Qt::Horizontal, "最小 SSIM");
+    m_tableModel->setHeaderData(6, Qt::Horizontal, tr("収束"));
+    m_tableModel->setHeaderData(7, Qt::Horizontal, tr("低 SSIM エッジ数"));
+    m_tableModel->setHeaderData(8, Qt::Horizontal, tr("最小 SSIM"));
 
     for (int n = 0; n < N; ++n) {
         // 全セルにデータを格納
-        QString it1 = all_data[n].abst.PaAll ? QString("部分") : QString("全体");
+        QString it1 = all_data[n].abst.PaAll ? tr("部分") : tr("全体");
         m_tableModel->setData(m_tableModel->index(n, 0), it1);
         m_tableModel->setData(m_tableModel->index(n, 1), all_data[n].abst.start);
         m_tableModel->setData(m_tableModel->index(n, 2), all_data[n].abst.end);
@@ -103,7 +114,8 @@ void detail_opti_dialog::refreshUi()
     connect(ui->tableView->selectionModel(),
             &QItemSelectionModel::currentRowChanged,
             this,
-            &detail_opti_dialog::onCurrentRowChanged);
+            &detail_opti_dialog::onCurrentRowChanged,
+            Qt::UniqueConnection);
 
 
 }
@@ -126,8 +138,8 @@ void detail_opti_dialog::onCurrentRowChanged(const QModelIndex& current, const Q
     m_tableModel_2->setColumnCount(3);
     m_tableModel_2->setRowCount(D);
 
-    m_tableModel_2->setHeaderData(0, Qt::Horizontal, "edge 画像 ID 1");
-    m_tableModel_2->setHeaderData(1, Qt::Horizontal, "edge 画像 ID 2");
+    m_tableModel_2->setHeaderData(0, Qt::Horizontal, tr("edge 画像 ID 1"));
+    m_tableModel_2->setHeaderData(1, Qt::Horizontal, tr("edge 画像 ID 2"));
     m_tableModel_2->setHeaderData(2, Qt::Horizontal, "SSIM");
 
     for (int n = 0; n < D; ++n) {

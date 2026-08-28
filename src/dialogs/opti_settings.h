@@ -19,6 +19,9 @@ public:
     std::vector<int> getValues();
     std::vector<bool> getTFs();
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void lock1(bool);
     void lock2(bool);
