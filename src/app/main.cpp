@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setApplicationName("Image Stitcher Auto");
     QCoreApplication::setOrganizationName("Image Stitcher Auto");
-    QCoreApplication::setApplicationVersion("1.2.0");
+    QCoreApplication::setApplicationVersion("1.2.1");
     const ApplicationDefaultSettings& defaults = AppSettings::defaults();
     applyApplicationLanguage(AppSettings::language());
     applyApplicationTheme(AppSettings::theme());
@@ -201,13 +201,6 @@ int main(int argc, char *argv[])
     MainWindow w;
     w.resize(AppSettings::windowSize(QStringLiteral("mainWindow"),
                                      QSize(1200, 750)));
-
-    w.setWindowTitle(
-        QString("%1  v%2").arg(
-            QCoreApplication::applicationName(),
-            QCoreApplication::applicationVersion()
-            )
-        );
 
     w.show();
 

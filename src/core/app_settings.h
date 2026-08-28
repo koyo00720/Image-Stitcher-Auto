@@ -75,6 +75,10 @@ struct ImageMergeDefaultSettings {
     int mode = 1;
 };
 
+struct ProjectFileDefaultSettings {
+    bool confirmSaveOnClose = true;
+};
+
 struct ApplicationDefaultSettings {
     ApplicationTheme theme = ApplicationTheme::System;
     ApplicationLanguage language = ApplicationLanguage::System;
@@ -86,6 +90,7 @@ struct ApplicationDefaultSettings {
     TrwsPamiDefaultSettings trwsPami;
     LeastSquaresDefaultSettings leastSquares;
     ImageMergeDefaultSettings imageMerge;
+    ProjectFileDefaultSettings projectFile;
 };
 
 class AppSettings
@@ -106,6 +111,9 @@ public:
     static void setVulkanEnabled(bool enabled);
     static void setIgnoreVramLimit(bool ignore);
     static void setVulkanDeviceKey(const QString& key);
+
+    static bool confirmProjectSaveOnClose();
+    static void setConfirmProjectSaveOnClose(bool enabled);
 
     static QString canvasBackground();
     static void setCanvasBackground(const QString& setting);

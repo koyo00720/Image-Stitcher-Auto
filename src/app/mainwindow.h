@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QString>
 #include <QColor>
+#include <QByteArray>
 #include <QMessageBox>
 
 #include <opencv2/core.hpp>
@@ -36,6 +37,7 @@ class QEvent;
 class QMenu;
 class QProgressBar;
 class QCheckBox;
+class QCloseEvent;
 class QColorDialog;
 class QFileDialog;
 class QScrollArea;
@@ -160,7 +162,8 @@ struct LeastSquaresStitchSettings {
 enum class ImageMergeMode {
     DistanceL2 = 0,
     FocusRegion = 1,
-    FocusStackTenengrad = 2
+    FocusStackTenengrad = 2,
+    ImageNumberOverwrite = 3
 };
 
 struct ImageMergeSettings {
@@ -263,6 +266,7 @@ private slots:
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
     void changeEvent(QEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -275,13 +279,15 @@ private:
     QString output_file;
 
     // ファイル入力 QStringListをQGraphicsPixmapItemへ変換
-    void File_input(const QStringList&, const QStringList&);
+    void File_input(const QStringList&, const QStringList&,
+                    const QVector<QByteArray>& embeddedImageData = {});
 
     // 画像データ
     QVector<QGraphicsPixmapItem*> items;
     QHash<int, QGraphicsPixmapItem*> itemById; // idとitemのリンク
     std::vector<cv::Mat> imgs; // 入力データ
     cv::Mat output_img; // 出力データ
+    QVector<QByteArray> projectImageData;
 
     // 全画像の解像度
     QVector<QSize> res_all;
@@ -356,6 +362,17 @@ private:
     void scheduleSettingsPersistence();
     void handleSettingsReset(SettingsResetCategory category);
     void handleCanvasFilesDropped(const QStringList& paths);
+    void showProjectOpenDialog();
+    void saveProject();
+    void saveProjectAs(std::function<void(bool)> completion = {});
+    bool saveProjectToPath(const QString& path);
+    void requestProjectOpen(const QString& path);
+    bool loadProjectFromPath(const QString& path);
+    bool hasExistingProjectData() const;
+    bool hasUnsavedProjectHistory() const;
+    int maximumCanvasHistorySequence() const;
+    void updateWindowTitle();
+    void showProjectReplacementPrompt(const QString& path);
     void trackDialogSize(QDialog* dialog,
                          const QString& key,
                          const QSize& defaultSize);
@@ -393,6 +410,11 @@ private:
     opti_settings* optimizationSettingsDialog = nullptr;
     least_squares_settings* leastSquaresSettingsDialog = nullptr;
     merge_settings* mergeSettingsDialog = nullptr;
+    QMenu* fileMenu = nullptr;
+    QAction* projectOpenAction = nullptr;
+    QAction* projectSaveAction = nullptr;
+    QAction* projectSaveAsAction = nullptr;
+    QAction* projectPngExportAction = nullptr;
     QAction* applicationSettingsAction = nullptr;
     QMenu* canvasMenu = nullptr;
     QAction* canvasBackgroundAction = nullptr;
@@ -408,6 +430,10 @@ private:
     QHash<QDialog*, QSize> trackedDialogDefaultSizes;
     bool suppressSettingsPersistence = false;
     QTimer* settingsPersistenceTimer = nullptr;
+    QString linkedProjectFilePath;
+    int savedProjectHistorySequence = 0;
+    bool projectClosePromptOpen = false;
+    bool allowCloseWithoutProjectPrompt = false;
 
     int calc_loop_num = 5; // 最大5回ループ計算する
 

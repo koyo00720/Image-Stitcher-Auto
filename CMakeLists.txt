@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Image_Stitcher_Auto VERSION 1.2.0 LANGUAGES CXX)
+project(Image_Stitcher_Auto VERSION 1.2.1 LANGUAGES CXX)
 
 if(APPLE)
     enable_language(OBJCXX)
@@ -115,6 +115,8 @@ set(DIALOG_SOURCES
     src/dialogs/opti_settings.cpp
     src/dialogs/opti_settings.h
     src/dialogs/opti_settings.ui
+    src/dialogs/unsupported_files_dialog.cpp
+    src/dialogs/unsupported_files_dialog.h
 )
 
 set(WIDGET_SOURCES
@@ -224,6 +226,80 @@ target_link_libraries(Image_Stitcher_Auto PRIVATE
     Qt${QT_VERSION_MAJOR}::Concurrent
     ${OpenCV_LIBS}
 )
+
+# OpenCV's Windows packages do not participate in windeployqt deployment.
+# Copy the imported OpenCV runtime libraries beside the executable so that a
+# freshly built application can also be started outside Qt Creator.
+if(WIN32)
+    set(IMAGE_STITCHER_OPENCV_RUNTIME_TARGETS "")
+    foreach(_opencv_target IN LISTS OpenCV_LIBS)
+        if(TARGET "${_opencv_target}")
+            get_target_property(_opencv_target_type "${_opencv_target}" TYPE)
+            if(_opencv_target_type STREQUAL "SHARED_LIBRARY")
+                list(APPEND IMAGE_STITCHER_OPENCV_RUNTIME_TARGETS "${_opencv_target}")
+            endif()
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES IMAGE_STITCHER_OPENCV_RUNTIME_TARGETS)
+
+    foreach(_opencv_target IN LISTS IMAGE_STITCHER_OPENCV_RUNTIME_TARGETS)
+        add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${_opencv_target}>"
+                "$<TARGET_FILE_DIR:Image_Stitcher_Auto>"
+        )
+    endforeach()
+
+    # The local OpenCV imgcodecs build uses AVIF through separately installed
+    # DLLs. They are not represented by OpenCV's imported CMake targets, so
+    # locate and deploy them explicitly when present.
+    if(TARGET opencv_imgcodecs)
+        get_target_property(_opencv_imgcodecs_runtime
+            opencv_imgcodecs IMPORTED_LOCATION_RELEASE)
+        if(NOT _opencv_imgcodecs_runtime)
+            get_target_property(_opencv_imgcodecs_runtime
+                opencv_imgcodecs IMPORTED_LOCATION)
+        endif()
+        if(_opencv_imgcodecs_runtime)
+            get_filename_component(_opencv_runtime_dir
+                "${_opencv_imgcodecs_runtime}" DIRECTORY)
+            get_filename_component(_opencv_dependency_root
+                "${_opencv_runtime_dir}/../../../.." ABSOLUTE)
+
+            unset(_image_stitcher_avif_dll CACHE)
+            find_file(_image_stitcher_avif_dll
+                NAMES libavif.dll avif.dll
+                PATHS "${_opencv_dependency_root}"
+                PATH_SUFFIXES
+                    bin
+                    deps/libavif_install/bin
+                NO_DEFAULT_PATH
+            )
+            unset(_image_stitcher_aom_dll CACHE)
+            find_file(_image_stitcher_aom_dll
+                NAMES libaom.dll aom.dll
+                PATHS "${_opencv_dependency_root}"
+                PATH_SUFFIXES
+                    bin
+                    deps/aom_install/bin
+                NO_DEFAULT_PATH
+            )
+
+            foreach(_opencv_codec_runtime
+                    "${_image_stitcher_avif_dll}"
+                    "${_image_stitcher_aom_dll}")
+                if(_opencv_codec_runtime
+                        AND EXISTS "${_opencv_codec_runtime}")
+                    add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${_opencv_codec_runtime}"
+                            "$<TARGET_FILE_DIR:Image_Stitcher_Auto>"
+                    )
+                endif()
+            endforeach()
+        endif()
+    endif()
+endif()
 
 if(APPLE)
     find_library(IMAGE_STITCHER_METAL_FRAMEWORK Metal REQUIRED)

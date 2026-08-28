@@ -71,7 +71,7 @@ bool createInstance(VkInstance& instance, QString& error)
     VkApplicationInfo applicationInfo{};
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     applicationInfo.pApplicationName = "Image Stitcher Auto";
-    applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 2, 0);
+    applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 2, 1);
     applicationInfo.pEngineName = "Image Stitcher Vulkan SSIM";
     applicationInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     applicationInfo.apiVersion = VK_API_VERSION_1_0;

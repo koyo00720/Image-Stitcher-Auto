@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>430</width>
-    <height>105</height>
+    <height>190</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,18 +17,39 @@
    <item row="0" column="0">
     <widget class="QGroupBox" name="groupBox">
      <property name="title">
-      <string/>
+      <string>結合モード</string>
      </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QRadioButton" name="distanceL2Radio">
         <property name="text">
-         <string>結合モード</string>
+         <string>境界距離重み（L2）</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
-       <widget class="QComboBox" name="comboBox"/>
+      <item>
+       <widget class="QRadioButton" name="focusRegionRadio">
+        <property name="text">
+         <string>重なり領域ごとに高フォーカス画像を使用</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="focusStackRadio">
+        <property name="text">
+         <string>Tenengradフォーカススタッキング</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="imageOrderRadio">
+        <property name="text">
+         <string>画像番号順に上書き</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

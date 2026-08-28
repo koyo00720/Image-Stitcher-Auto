@@ -43,6 +43,9 @@ public:
 
     //void setData(bool,int,int,int,int,bool,int,double,double);
     void setData(out_detail,out_log);
+    std::vector<one_line> data() const;
+    void setAllData(const std::vector<one_line>& data);
+    void clearData();
 
 protected:
     void changeEvent(QEvent* event) override;

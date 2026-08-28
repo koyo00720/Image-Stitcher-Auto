@@ -1,5 +1,6 @@
 #include "file_input_wiz.h"
 #include "ui_file_input_wiz.h"
+#include "unsupported_files_dialog.h"
 #include "app_settings.h"
 #include "droparea_wiz.h"
 #include "filetablewidget.h"
@@ -21,10 +22,14 @@
 
 #include <algorithm>
 
-FileInputDialog::FileInputDialog(const QStringList &initialFiles, QWidget *parent)
+FileInputDialog::FileInputDialog(
+    const QStringList &initialFiles,
+    const QHash<QString, QByteArray>& initialEmbeddedImages,
+    QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::FileInputDialog)
     , fiw_files(initialFiles)
+    , embeddedImages(initialEmbeddedImages)
 {
     ui->setupUi(this);
 
@@ -161,7 +166,11 @@ void FileInputDialog::onFilesDropped(const QStringList &files)
         QFileInfo info(path);
 
         if (!info.exists()) {
-            // 存在しないパスは無視
+            const QString absolutePath = info.absoluteFilePath();
+            if (!seen.contains(absolutePath)) {
+                result << absolutePath;
+                seen.insert(absolutePath);
+            }
             continue;
         }
 
@@ -212,16 +221,24 @@ void FileInputDialog::updateTable()
     const QSize thumbSize(50, 35);
 
     QStringList validFiles;
+    QStringList unreadableFiles;
     validFiles.reserve(fiw_files.size());
 
     for (const QString &path : std::as_const(fiw_files)) {
         // 先に画像読み込み
-        QImageReader reader(path);
-        reader.setAutoTransform(true);
-        QImage img = reader.read();
+        QImage img;
+        const QByteArray embedded = embeddedImages.value(path);
+        if (!embedded.isEmpty()) {
+            img.loadFromData(embedded);
+        } else {
+            QImageReader reader(path);
+            reader.setAutoTransform(true);
+            img = reader.read();
+        }
 
         // 読み取り不可ならスキップ（fiw_filesにも入れない）
         if (img.isNull()) {
+            unreadableFiles.append(path);
             continue;
         }
 
@@ -250,6 +267,7 @@ void FileInputDialog::updateTable()
 
     // fiw_files を「読めたものだけ」に更新
     fiw_files = validFiles;
+    showUnsupportedFilesDialog(unreadableFiles, this);
 }
 
 void FileInputDialog::syncMFilesFromTable()

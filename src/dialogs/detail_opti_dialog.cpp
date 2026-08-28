@@ -65,6 +65,23 @@ void detail_opti_dialog::setData(out_detail det,out_log log)
     all_data.push_back(now);
 }
 
+std::vector<one_line> detail_opti_dialog::data() const
+{
+    return all_data;
+}
+
+void detail_opti_dialog::setAllData(const std::vector<one_line>& data)
+{
+    all_data = data;
+    refreshUi();
+}
+
+void detail_opti_dialog::clearData()
+{
+    all_data.clear();
+    refreshUi();
+}
+
 void detail_opti_dialog::showEvent(QShowEvent* event)
 {
     QDialog::showEvent(event);

@@ -29,12 +29,14 @@ constexpr auto kLanguageKey = "general/language";
 constexpr auto kVulkanEnabledKey = "vulkan/enabled";
 constexpr auto kVulkanIgnoreLimitKey = "vulkan/ignoreVramLimit";
 constexpr auto kVulkanDeviceKey = "vulkan/deviceKey";
+constexpr auto kConfirmProjectSaveOnCloseKey = "projectFile/confirmSaveOnClose";
 constexpr auto kCanvasBackgroundKey = "canvas/background";
 constexpr auto kDefaultsFileName = "Image_Stitcher_Auto.conf";
 constexpr auto kEnglishTranslationFileName = "Image_Stitcher_Auto_en.qm";
 
 constexpr auto kStateApplicationSection = "stateApplication";
 constexpr auto kStateVulkanSection = "stateVulkan";
+constexpr auto kStateProjectFileSection = "stateProjectFile";
 constexpr auto kStateCanvasSection = "stateCanvas";
 constexpr auto kStateAlignmentSection = "stateAlignment";
 constexpr auto kStateArrangementSection = "stateArrangement";
@@ -384,6 +386,10 @@ ApplicationDefaultSettings loadDefaultSettings(const QString& filePath)
     defaults.vulkan.deviceKey =
         settings.value("vulkan/deviceKey", defaults.vulkan.deviceKey).toString().trimmed();
 
+    defaults.projectFile.confirmSaveOnClose =
+        readBool(settings, "projectFile/confirmSaveOnClose",
+                 defaults.projectFile.confirmSaveOnClose);
+
     defaults.fileInput.sortMode =
         readChoice(settings,
                    "fileInput/sortMode",
@@ -552,7 +558,8 @@ ApplicationDefaultSettings loadDefaultSettings(const QString& filePath)
                    defaults.imageMerge.mode,
                    {{"distanceL2", 0},
                     {"focusRegion", 1},
-                    {"focusStackTenengrad", 2}});
+                    {"focusStackTenengrad", 2},
+                    {"imageNumberOverwrite", 3}});
 
     return defaults;
 }
@@ -718,6 +725,23 @@ void AppSettings::setVulkanDeviceKey(const QString& key)
 {
     setPersistedValue(kVulkanDeviceKey, kStateVulkanSection, "deviceKey",
                       key, key);
+}
+
+bool AppSettings::confirmProjectSaveOnClose()
+{
+    return persistedValue(kConfirmProjectSaveOnCloseKey,
+                          kStateProjectFileSection,
+                          "confirmSaveOnClose",
+                          defaults().projectFile.confirmSaveOnClose).toBool();
+}
+
+void AppSettings::setConfirmProjectSaveOnClose(bool enabled)
+{
+    setPersistedValue(kConfirmProjectSaveOnCloseKey,
+                      kStateProjectFileSection,
+                      "confirmSaveOnClose", enabled,
+                      enabled ? QStringLiteral("true")
+                              : QStringLiteral("false"));
 }
 
 QString AppSettings::canvasBackground()
@@ -1009,13 +1033,13 @@ ImageMergeDefaultSettings AppSettings::imageMergeOptions()
     ImageMergeDefaultSettings options = defaults().imageMerge;
     options.mode = boundedPersistedInt(
         "imageMerge/mode", kStateImageMergeSection, "mode",
-        options.mode, 0, 2);
+        options.mode, 0, 3);
     return options;
 }
 
 void AppSettings::setImageMergeOptions(const ImageMergeDefaultSettings& options)
 {
-    const int mode = std::clamp(options.mode, 0, 2);
+    const int mode = std::clamp(options.mode, 0, 3);
     setPersistedValue("imageMerge/mode", kStateImageMergeSection, "mode",
                       mode, QString::number(mode));
 }
@@ -1105,6 +1129,8 @@ void AppSettings::resetApplicationDialogSettings()
     resetPersistedValue(kVulkanIgnoreLimitKey, kStateVulkanSection,
                         "ignoreVramLimit");
     resetPersistedValue(kVulkanDeviceKey, kStateVulkanSection, "deviceKey");
+    resetPersistedValue(kConfirmProjectSaveOnCloseKey,
+                        kStateProjectFileSection, "confirmSaveOnClose");
 }
 
 void AppSettings::resetCanvasSettings()

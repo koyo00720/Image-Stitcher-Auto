@@ -2,6 +2,8 @@
 #define FILE_INPUT_WIZ_H
 
 #include <QDialog>
+#include <QByteArray>
+#include <QHash>
 #include <QStringList>
 
 QT_BEGIN_NAMESPACE
@@ -13,7 +15,10 @@ class FileInputDialog : public QDialog
 {
     Q_OBJECT
 public:
-    explicit FileInputDialog(const QStringList &initialFiles, QWidget *parent = nullptr);
+    explicit FileInputDialog(
+        const QStringList &initialFiles,
+        const QHash<QString, QByteArray>& embeddedImages = {},
+        QWidget *parent = nullptr);
     ~FileInputDialog();
 
     QStringList selectedFiles() const { return fiw_files; }
@@ -47,5 +52,6 @@ private:
     QStringList onSortUpFname(QStringList);
 
     QStringList fiw_files;
+    QHash<QString, QByteArray> embeddedImages;
 };
 #endif

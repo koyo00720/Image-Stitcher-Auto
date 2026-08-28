@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -109,7 +110,7 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     : QDialog(parent)
 {
     setModal(false);
-    setMinimumSize(640, 400);
+    setMinimumWidth(640);
     resize(700, 440);
 
     auto* rootLayout = new QVBoxLayout(this);
@@ -141,6 +142,7 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     tabList->addItem(QString());
     tabList->addItem(QString());
     tabList->addItem(QString());
+    tabList->addItem(QString());
     bodyLayout->addWidget(tabList);
 
     auto* separator = new QFrame(this);
@@ -151,7 +153,23 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     pageStack = new QStackedWidget(this);
     bodyLayout->addWidget(pageStack, 1);
 
-    auto* generalPage = new QWidget(pageStack);
+    auto addScrollablePage = [this](QWidget* page) {
+        auto* scrollArea = new QScrollArea(pageStack);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setAutoFillBackground(false);
+        scrollArea->viewport()->setAutoFillBackground(false);
+        page->setAutoFillBackground(false);
+        if (page->layout()) {
+            page->layout()->setSizeConstraint(QLayout::SetMinAndMaxSize);
+        }
+        scrollArea->setWidget(page);
+        pageStack->addWidget(scrollArea);
+    };
+
+    auto* generalPage = new QWidget;
     auto* generalLayout = new QVBoxLayout(generalPage);
     generalLayout->setContentsMargins(8, 2, 4, 2);
     generalLayout->setSpacing(14);
@@ -230,10 +248,17 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     vulkanStatusLabel->setForegroundRole(QPalette::PlaceholderText);
     vulkanLayout->addWidget(vulkanStatusLabel);
     generalLayout->addWidget(vulkanGroup);
-    generalLayout->addStretch(1);
-    pageStack->addWidget(generalPage);
 
-    auto* resetPage = new QWidget(pageStack);
+    projectFileGroup = new QGroupBox(generalPage);
+    auto* projectFileLayout = new QVBoxLayout(projectFileGroup);
+    projectFileLayout->setContentsMargins(14, 12, 14, 12);
+    confirmProjectSaveCheck = new QCheckBox(projectFileGroup);
+    projectFileLayout->addWidget(confirmProjectSaveCheck);
+    generalLayout->addWidget(projectFileGroup);
+    generalLayout->addStretch(1);
+    addScrollablePage(generalPage);
+
+    auto* resetPage = new QWidget;
     auto* resetPageLayout = new QVBoxLayout(resetPage);
     resetPageLayout->setContentsMargins(8, 2, 4, 2);
     resetGroup = new QGroupBox(resetPage);
@@ -261,9 +286,44 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     addResetButton(resetImageMergeButton, SettingsResetCategory::ImageMerge);
     resetPageLayout->addWidget(resetGroup);
     resetPageLayout->addStretch(1);
-    pageStack->addWidget(resetPage);
+    addScrollablePage(resetPage);
 
-    auto* informationPage = new QWidget(pageStack);
+    auto* shortcutPage = new QWidget;
+    auto* shortcutLayout = new QVBoxLayout(shortcutPage);
+    shortcutLayout->setContentsMargins(8, 2, 4, 2);
+    shortcutLayout->setSpacing(14);
+
+    shortcutFileGroup = new QGroupBox(shortcutPage);
+    auto* shortcutFileLayout = new QFormLayout(shortcutFileGroup);
+    shortcutFileLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    shortcutOpenProjectLabel = new QLabel(shortcutFileGroup);
+    shortcutSaveProjectLabel = new QLabel(shortcutFileGroup);
+    shortcutFileLayout->addRow(new QLabel(QStringLiteral("Ctrl+O"), shortcutFileGroup),
+                               shortcutOpenProjectLabel);
+    shortcutFileLayout->addRow(new QLabel(QStringLiteral("Ctrl+S"), shortcutFileGroup),
+                               shortcutSaveProjectLabel);
+    shortcutLayout->addWidget(shortcutFileGroup);
+
+    shortcutCanvasGroup = new QGroupBox(shortcutPage);
+    auto* shortcutCanvasLayout = new QFormLayout(shortcutCanvasGroup);
+    shortcutCanvasLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    shortcutUndoLabel = new QLabel(shortcutCanvasGroup);
+    shortcutRedoLabel = new QLabel(shortcutCanvasGroup);
+    shortcutDeleteLabel = new QLabel(shortcutCanvasGroup);
+    shortcutFindLabel = new QLabel(shortcutCanvasGroup);
+    shortcutCanvasLayout->addRow(new QLabel(QStringLiteral("Ctrl+Z"), shortcutCanvasGroup),
+                                 shortcutUndoLabel);
+    shortcutCanvasLayout->addRow(new QLabel(QStringLiteral("Ctrl+Y"), shortcutCanvasGroup),
+                                 shortcutRedoLabel);
+    shortcutCanvasLayout->addRow(new QLabel(QStringLiteral("Delete"), shortcutCanvasGroup),
+                                 shortcutDeleteLabel);
+    shortcutCanvasLayout->addRow(new QLabel(QStringLiteral("Ctrl+F"), shortcutCanvasGroup),
+                                 shortcutFindLabel);
+    shortcutLayout->addWidget(shortcutCanvasGroup);
+    shortcutLayout->addStretch(1);
+    addScrollablePage(shortcutPage);
+
+    auto* informationPage = new QWidget;
     auto* informationLayout = new QFormLayout(informationPage);
     informationLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     informationApplicationCaption = new QLabel(informationPage);
@@ -283,7 +343,7 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     informationVulkanLabel->setWordWrap(true);
     informationVulkanLabel->setForegroundRole(QPalette::PlaceholderText);
     informationLayout->addRow(informationVulkanCaption, informationVulkanLabel);
-    pageStack->addWidget(informationPage);
+    addScrollablePage(informationPage);
 
     auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
     closeButton = buttonBox->button(QDialogButtonBox::Close);
@@ -301,6 +361,9 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     connect(ignoreVramLimitCheck, &QCheckBox::toggled, this, [](bool ignore) {
         AppSettings::setIgnoreVramLimit(ignore);
     });
+    connect(confirmProjectSaveCheck, &QCheckBox::toggled, this, [](bool enabled) {
+        AppSettings::setConfirmProjectSaveOnClose(enabled);
+    });
     connect(gpuCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int index) {
         if (index >= 0) {
@@ -310,6 +373,7 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
 
     reloadFromSettings();
     retranslateUi();
+    updateMinimumHeightForTabs();
     updateVulkanControls();
     updateVulkanStatusText();
 }
@@ -319,8 +383,30 @@ void ApplicationSettingsDialog::changeEvent(QEvent* event)
     QDialog::changeEvent(event);
     if (event->type() == QEvent::LanguageChange) {
         retranslateUi();
+        updateMinimumHeightForTabs();
         updateVulkanStatusText();
     }
+}
+
+void ApplicationSettingsDialog::updateMinimumHeightForTabs()
+{
+    if (!tabList || !layout()) {
+        return;
+    }
+
+    int tabHeight = 2 * tabList->frameWidth();
+    for (int row = 0; row < tabList->count(); ++row) {
+        tabHeight += tabList->sizeHintForRow(row);
+    }
+    if (tabList->count() > 1) {
+        tabHeight += (tabList->count() - 1) * tabList->spacing();
+    }
+    // Include the list's stylesheet padding without imposing extra blank rows.
+    tabHeight += 8;
+    tabList->setMinimumHeight(tabHeight);
+
+    layout()->activate();
+    setMinimumHeight(layout()->minimumSize().height());
 }
 
 void ApplicationSettingsDialog::retranslateUi()
@@ -328,7 +414,8 @@ void ApplicationSettingsDialog::retranslateUi()
     setWindowTitle(tr("設定"));
     tabList->item(0)->setText(tr("一般"));
     tabList->item(1)->setText(tr("リセット"));
-    tabList->item(2)->setText(tr("情報"));
+    tabList->item(2)->setText(tr("ショートカット"));
+    tabList->item(3)->setText(tr("情報"));
 
     themeGroup->setTitle(tr("テーマ"));
     systemThemeButton->setText(tr("システム"));
@@ -348,6 +435,10 @@ void ApplicationSettingsDialog::retranslateUi()
     ignoreVramLimitCheck->setText(tr("VRAM limitを無視する"));
     gpuCaptionLabel->setText(tr("使用するGPU:"));
 
+    projectFileGroup->setTitle(tr("プロジェクトファイル"));
+    confirmProjectSaveCheck->setText(
+        tr("ウインドウを閉じる時にプロジェクトファイル保存を確認する"));
+
     resetGroup->setTitle(tr("デフォルト設定にリセット"));
     resetAllButton->setText(tr("全て"));
     resetApplicationButton->setText(tr("設定ダイアログ"));
@@ -358,6 +449,15 @@ void ApplicationSettingsDialog::retranslateUi()
     resetTrwsPamiButton->setText(
         tr("位置合わせ最適化（TRW-S-PAMI）"));
     resetImageMergeButton->setText(tr("画像を作成"));
+
+    shortcutFileGroup->setTitle(tr("ファイル"));
+    shortcutCanvasGroup->setTitle(tr("キャンパス"));
+    shortcutOpenProjectLabel->setText(tr("プロジェクトを開く"));
+    shortcutSaveProjectLabel->setText(tr("プロジェクト保存"));
+    shortcutUndoLabel->setText(tr("変更履歴を戻す"));
+    shortcutRedoLabel->setText(tr("変更履歴を進める"));
+    shortcutDeleteLabel->setText(tr("選択中の画像を削除"));
+    shortcutFindLabel->setText(tr("画像をハイライト"));
 
     informationApplicationCaption->setText(tr("アプリケーション:"));
     informationVersionCaption->setText(tr("バージョン:"));
@@ -378,6 +478,7 @@ void ApplicationSettingsDialog::reloadFromSettings()
     const QSignalBlocker vulkanBlocker(useVulkanCheck);
     const QSignalBlocker limitBlocker(ignoreVramLimitCheck);
     const QSignalBlocker gpuBlocker(gpuCombo);
+    const QSignalBlocker confirmProjectBlocker(confirmProjectSaveCheck);
 
     const ApplicationTheme currentTheme = AppSettings::theme();
     if (QAbstractButton* currentThemeButton =
@@ -394,6 +495,7 @@ void ApplicationSettingsDialog::reloadFromSettings()
     const VulkanExecutionOptions options = AppSettings::vulkanOptions();
     useVulkanCheck->setChecked(options.enabled);
     ignoreVramLimitCheck->setChecked(options.ignoreVramLimit);
+    confirmProjectSaveCheck->setChecked(AppSettings::confirmProjectSaveOnClose());
     int gpuIndex = gpuCombo->findData(options.deviceKey);
     if (gpuIndex < 0 && gpuCombo->count() > 0) {
         gpuIndex = 0;

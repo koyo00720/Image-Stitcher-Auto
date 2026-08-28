@@ -47,6 +47,7 @@ protected:
 
 private:
     void retranslateUi();
+    void updateMinimumHeightForTabs();
     void updateVulkanControls();
     void updateVulkanStatusText();
 
@@ -68,6 +69,8 @@ private:
     QComboBox* gpuCombo = nullptr;
     QLabel* gpuCaptionLabel = nullptr;
     QLabel* vulkanStatusLabel = nullptr;
+    QGroupBox* projectFileGroup = nullptr;
+    QCheckBox* confirmProjectSaveCheck = nullptr;
     QGroupBox* resetGroup = nullptr;
     QPushButton* resetAllButton = nullptr;
     QPushButton* resetApplicationButton = nullptr;
@@ -76,6 +79,14 @@ private:
     QPushButton* resetLeastSquaresButton = nullptr;
     QPushButton* resetTrwsPamiButton = nullptr;
     QPushButton* resetImageMergeButton = nullptr;
+    QGroupBox* shortcutFileGroup = nullptr;
+    QGroupBox* shortcutCanvasGroup = nullptr;
+    QLabel* shortcutOpenProjectLabel = nullptr;
+    QLabel* shortcutSaveProjectLabel = nullptr;
+    QLabel* shortcutUndoLabel = nullptr;
+    QLabel* shortcutRedoLabel = nullptr;
+    QLabel* shortcutDeleteLabel = nullptr;
+    QLabel* shortcutFindLabel = nullptr;
     QLabel* informationApplicationCaption = nullptr;
     QLabel* informationVersionCaption = nullptr;
     QLabel* informationQtCaption = nullptr;

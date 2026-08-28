@@ -11,8 +11,14 @@
 #include "merge_settings.h"
 #include "canvas_history_graph_widget.h"
 #include "metal_ssim.h"
+#include "unsupported_files_dialog.h"
 
+#include <QBuffer>
+#include <QCloseEvent>
+#include <QDataStream>
+#include <QFile>
 #include <QFileDialog>
+#include <QSaveFile>
 #include <QString>
 #include <QStringList>
 #include <QPixmap>
@@ -50,6 +56,7 @@
 #include <QScrollArea>
 #include <QFrame>
 #include <QProgressBar>
+#include <QVariantList>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
@@ -64,6 +71,217 @@
 #include <mutex>
 #include <utility>
 //#include <numeric>
+
+namespace
+{
+constexpr quint32 kProjectMagic = 0x49534155U; // "ISAU"
+constexpr quint16 kProjectSchemaVersion = 1;
+
+QVariantList pointsToVariant(const QVector<QPoint>& points)
+{
+    QVariantList result;
+    result.reserve(points.size());
+    for (const QPoint& point : points) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("x"), point.x());
+        entry.insert(QStringLiteral("y"), point.y());
+        result.push_back(entry);
+    }
+    return result;
+}
+
+QVector<QPoint> pointsFromVariant(const QVariant& value)
+{
+    const QVariantList list = value.toList();
+    QVector<QPoint> result;
+    result.reserve(list.size());
+    for (const QVariant& item : list) {
+        const QVariantMap entry = item.toMap();
+        result.push_back(QPoint(entry.value(QStringLiteral("x")).toInt(),
+                                entry.value(QStringLiteral("y")).toInt()));
+    }
+    return result;
+}
+
+QVariantList intsToVariant(const QVector<int>& values)
+{
+    QVariantList result;
+    result.reserve(values.size());
+    for (int value : values) result.push_back(value);
+    return result;
+}
+
+QVector<int> intsFromVariant(const QVariant& value)
+{
+    const QVariantList list = value.toList();
+    QVector<int> result;
+    result.reserve(list.size());
+    for (const QVariant& item : list) result.push_back(item.toInt());
+    return result;
+}
+
+QVariantList boolsToVariant(const QVector<bool>& values)
+{
+    QVariantList result;
+    result.reserve(values.size());
+    for (bool value : values) result.push_back(value);
+    return result;
+}
+
+QVector<bool> boolsFromVariant(const QVariant& value)
+{
+    const QVariantList list = value.toList();
+    QVector<bool> result;
+    result.reserve(list.size());
+    for (const QVariant& item : list) result.push_back(item.toBool());
+    return result;
+}
+
+QVariantList doublesToVariant(const std::vector<double>& values)
+{
+    QVariantList result;
+    result.reserve(static_cast<int>(values.size()));
+    for (double value : values) result.push_back(value);
+    return result;
+}
+
+std::vector<double> doublesFromVariant(const QVariant& value)
+{
+    const QVariantList list = value.toList();
+    std::vector<double> result;
+    result.reserve(static_cast<size_t>(list.size()));
+    for (const QVariant& item : list) result.push_back(item.toDouble());
+    return result;
+}
+
+QVariantMap ifftResultToVariant(const ifft_thread_output& result)
+{
+    QVariantMap value;
+    value.insert(QStringLiteral("img1"), result.img1_id);
+    value.insert(QStringLiteral("img2"), result.img2_id);
+    value.insert(QStringLiteral("x"), result.vecX);
+    value.insert(QStringLiteral("y"), result.vecY);
+    value.insert(QStringLiteral("score"), result.score);
+    value.insert(QStringLiteral("stability"), result.stability);
+    value.insert(QStringLiteral("loop"), result.loop_num);
+    value.insert(QStringLiteral("ssim"), result.ssim);
+    value.insert(QStringLiteral("error"), result.calc_error);
+    value.insert(QStringLiteral("cancelled"), result.cancelled);
+    return value;
+}
+
+ifft_thread_output ifftResultFromVariant(const QVariant& value)
+{
+    const QVariantMap map = value.toMap();
+    ifft_thread_output result{};
+    result.img1_id = map.value(QStringLiteral("img1")).toInt();
+    result.img2_id = map.value(QStringLiteral("img2")).toInt();
+    result.vecX = map.value(QStringLiteral("x")).toDouble();
+    result.vecY = map.value(QStringLiteral("y")).toDouble();
+    result.score = map.value(QStringLiteral("score")).toDouble();
+    result.stability = map.value(QStringLiteral("stability")).toBool();
+    result.loop_num = map.value(QStringLiteral("loop")).toInt();
+    result.ssim = map.value(QStringLiteral("ssim")).toDouble();
+    result.calc_error = map.value(QStringLiteral("error")).toBool();
+    result.cancelled = map.value(QStringLiteral("cancelled")).toBool();
+    return result;
+}
+
+QVariantList ifftResultsToVariant(const QList<ifft_thread_output>& results)
+{
+    QVariantList list;
+    list.reserve(results.size());
+    for (const ifft_thread_output& result : results) {
+        list.push_back(ifftResultToVariant(result));
+    }
+    return list;
+}
+
+QList<ifft_thread_output> ifftResultsFromVariant(const QVariant& value)
+{
+    QList<ifft_thread_output> results;
+    const QVariantList list = value.toList();
+    results.reserve(list.size());
+    for (const QVariant& item : list) {
+        results.push_back(ifftResultFromVariant(item));
+    }
+    return results;
+}
+
+QVariantMap leastDetailToVariant(const LeastSquaresPairDetail& detail)
+{
+    QVariantMap value;
+    value.insert(QStringLiteral("img1"), detail.img1);
+    value.insert(QStringLiteral("img2"), detail.img2);
+    value.insert(QStringLiteral("status"), detail.status);
+    value.insert(QStringLiteral("loop"), detail.loop_num);
+    value.insert(QStringLiteral("stability"), detail.stability);
+    value.insert(QStringLiteral("score"), detail.score);
+    value.insert(QStringLiteral("measuredSsim"), detail.measuredSsim);
+    value.insert(QStringLiteral("optimizedSsim"), detail.optimizedSsim);
+    value.insert(QStringLiteral("measuredDx"), detail.measuredDx);
+    value.insert(QStringLiteral("measuredDy"), detail.measuredDy);
+    value.insert(QStringLiteral("optimizedDx"), detail.optimizedDx);
+    value.insert(QStringLiteral("optimizedDy"), detail.optimizedDy);
+    value.insert(QStringLiteral("residual"), detail.residual);
+    return value;
+}
+
+LeastSquaresPairDetail leastDetailFromVariant(const QVariant& value)
+{
+    const QVariantMap map = value.toMap();
+    LeastSquaresPairDetail detail;
+    detail.img1 = map.value(QStringLiteral("img1"), -1).toInt();
+    detail.img2 = map.value(QStringLiteral("img2"), -1).toInt();
+    detail.status = map.value(QStringLiteral("status")).toString();
+    detail.loop_num = map.value(QStringLiteral("loop")).toInt();
+    detail.stability = map.value(QStringLiteral("stability")).toBool();
+    detail.score = map.value(QStringLiteral("score")).toDouble();
+    detail.measuredSsim = map.value(QStringLiteral("measuredSsim")).toDouble();
+    detail.optimizedSsim = map.value(QStringLiteral("optimizedSsim")).toDouble();
+    detail.measuredDx = map.value(QStringLiteral("measuredDx")).toDouble();
+    detail.measuredDy = map.value(QStringLiteral("measuredDy")).toDouble();
+    detail.optimizedDx = map.value(QStringLiteral("optimizedDx")).toDouble();
+    detail.optimizedDy = map.value(QStringLiteral("optimizedDy")).toDouble();
+    detail.residual = map.value(QStringLiteral("residual")).toDouble();
+    return detail;
+}
+
+QByteArray encodeMatAsPng(const cv::Mat& image)
+{
+    if (image.empty()) return {};
+    std::vector<uchar> encoded;
+    try {
+        if (!cv::imencode(".png", image, encoded)) return {};
+    } catch (const cv::Exception&) {
+        return {};
+    }
+    return QByteArray(reinterpret_cast<const char*>(encoded.data()),
+                      static_cast<int>(encoded.size()));
+}
+
+cv::Mat decodeEmbeddedImage(const QByteArray& data)
+{
+    if (data.isEmpty()) return {};
+    const cv::Mat bytes(1, data.size(), CV_8UC1,
+                        const_cast<char*>(data.constData()));
+    try {
+        return cv::imdecode(bytes, cv::IMREAD_UNCHANGED);
+    } catch (const cv::Exception&) {
+        return {};
+    }
+}
+
+QByteArray pixmapAsPng(const QPixmap& pixmap)
+{
+    QByteArray data;
+    QBuffer buffer(&data);
+    if (!buffer.open(QIODevice::WriteOnly) || !pixmap.save(&buffer, "PNG")) {
+        return {};
+    }
+    return data;
+}
+}
 
 static bool workerCancellationRequested(
     const std::shared_ptr<std::atomic_bool>& cancellation)
@@ -510,6 +728,35 @@ cv::Mat mergeBySimpleOverlayAndBuildSourceMap(const std::vector<MergePlacedImage
     return canvas;
 }
 
+cv::Mat mergeByImageNumberOverwrite(
+    const std::vector<MergePlacedImage>& placed,
+    const cv::Size& canvasSize,
+    const std::shared_ptr<std::atomic_bool>& cancellation)
+{
+    cv::Mat canvas(canvasSize.height, canvasSize.width, CV_8UC4,
+                   cv::Scalar(0, 0, 0, 0));
+    // placed is in image-number order. Each later opaque pixel replaces the
+    // previous one, so the largest image number wins in every overlap.
+    for (const MergePlacedImage& item : placed) {
+        for (int y = 0; y < item.bgra.rows; ++y) {
+            if (workerCancellationRequested(cancellation)) return {};
+            const int canvasY = item.topLeft.y() + y;
+            if (canvasY < 0 || canvasY >= canvasSize.height) continue;
+            const uchar* maskRow = item.mask.ptr<uchar>(y);
+            const cv::Vec4b* sourceRow = item.bgra.ptr<cv::Vec4b>(y);
+            cv::Vec4b* canvasRow = canvas.ptr<cv::Vec4b>(canvasY);
+            for (int x = 0; x < item.bgra.cols; ++x) {
+                if (!maskRow[x]) continue;
+                const int canvasX = item.topLeft.x() + x;
+                if (canvasX >= 0 && canvasX < canvasSize.width) {
+                    canvasRow[canvasX] = sourceRow[x];
+                }
+            }
+        }
+    }
+    return canvas;
+}
+
 std::vector<int> mergeImagesCoveringCanvasPixel(const std::vector<MergePlacedImage>& placed,
                                                 int cx,
                                                 int cy)
@@ -720,6 +967,8 @@ cv::Mat mergeImagesForExport(const std::vector<cv::Mat>& imgs,
         return mergeByFocusRegion(placed, canvasSize, cancellation);
     case ImageMergeMode::FocusStackTenengrad:
         return mergeByTenengradPixel(placed, canvasSize, cancellation);
+    case ImageMergeMode::ImageNumberOverwrite:
+        return mergeByImageNumberOverwrite(placed, canvasSize, cancellation);
     case ImageMergeMode::DistanceL2:
     default:
         return mergeByLegacyDistanceL2(imgs, poss, cancellation);
@@ -949,19 +1198,44 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->checkBox->setChecked(defaults.canvas.layoutLocked);
     ui->checkBox_2->setChecked(defaults.canvas.useCanvasAsSource);
 
-    // メニューバー左端の設定ボタンと、その右側のキャンパスメニュー。
-    applicationSettingsAction = ui->menubar->addAction(tr("設定"));
-    connect(applicationSettingsAction, &QAction::triggered,
-            this, &MainWindow::show_application_settings);
+    // メニューバー左端のファイルメニュー、その右にキャンパスと設定。
+    fileMenu = ui->menubar->addMenu(tr("ファイル"));
+    projectOpenAction = fileMenu->addAction(tr("プロジェクトを開く"));
+    projectOpenAction->setShortcut(QKeySequence::Open);
+    projectSaveAction = fileMenu->addAction(tr("プロジェクト保存"));
+    projectSaveAction->setShortcut(QKeySequence::Save);
+    projectSaveAsAction = fileMenu->addAction(tr("名前を付けてプロジェクト保存"));
+    fileMenu->addSeparator();
+    projectPngExportAction = fileMenu->addAction(tr("PNGエクスポート"));
+    connect(projectOpenAction, &QAction::triggered,
+            this, &MainWindow::showProjectOpenDialog);
+    connect(projectSaveAction, &QAction::triggered,
+            this, &MainWindow::saveProject);
+    connect(projectSaveAsAction, &QAction::triggered,
+            this, [this]() { saveProjectAs(); });
+    connect(projectPngExportAction, &QAction::triggered,
+            this, &MainWindow::png_export);
+
     canvasMenu = ui->menubar->addMenu(tr("キャンパス"));
     canvasBackgroundAction = canvasMenu->addAction(tr("背景色"));
     connect(canvasBackgroundAction, &QAction::triggered,
             this, &MainWindow::showCanvasBackgroundDialog);
+    applicationSettingsAction = ui->menubar->addAction(tr("設定"));
+    connect(applicationSettingsAction, &QAction::triggered,
+            this, &MainWindow::show_application_settings);
 
     // 入力画像設定ボタン
     connect(ui->pushButton_1, &QPushButton::clicked, this, [this]() {
         if (!fileInputDialog) {
-            fileInputDialog = new FileInputDialog(input_files, this);
+            QHash<QString, QByteArray> embeddedImages;
+            for (int i = 0; i < input_files.size()
+                            && i < projectImageData.size(); ++i) {
+                if (!projectImageData[i].isEmpty()) {
+                    embeddedImages.insert(input_files[i], projectImageData[i]);
+                }
+            }
+            fileInputDialog = new FileInputDialog(
+                input_files, embeddedImages, this);
             fileInputDialog->setAttribute(Qt::WA_DeleteOnClose);
             fileInputDialog->setModal(false);
             fileInputDialog->setWindowModality(Qt::NonModal);
@@ -1232,6 +1506,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // イベントループ開始後にバックグラウンド検出し、起動時間へ影響させない。
     QTimer::singleShot(750, this, &MainWindow::startDelayedVulkanDetection);
     posi_lock(ui->checkBox->isChecked());
+    updateWindowTitle();
 }
 
 MainWindow::~MainWindow()
@@ -1361,9 +1636,22 @@ void MainWindow::applyCanvasBackgroundSetting(const QString& setting)
 
 void MainWindow::retranslateDynamicUi()
 {
-    setWindowTitle(QString("%1  v%2")
-                       .arg(QCoreApplication::applicationName(),
-                            QCoreApplication::applicationVersion()));
+    updateWindowTitle();
+    if (fileMenu) {
+        fileMenu->setTitle(tr("ファイル"));
+    }
+    if (projectOpenAction) {
+        projectOpenAction->setText(tr("プロジェクトを開く"));
+    }
+    if (projectSaveAction) {
+        projectSaveAction->setText(tr("プロジェクト保存"));
+    }
+    if (projectSaveAsAction) {
+        projectSaveAsAction->setText(tr("名前を付けてプロジェクト保存"));
+    }
+    if (projectPngExportAction) {
+        projectPngExportAction->setText(tr("PNGエクスポート"));
+    }
     if (applicationSettingsAction) {
         applicationSettingsAction->setText(tr("設定"));
     }
@@ -1419,6 +1707,869 @@ void MainWindow::changeEvent(QEvent* event)
     }
 }
 
+int MainWindow::maximumCanvasHistorySequence() const
+{
+    int maximum = 0;
+    for (const CanvasHistoryNode& node : canvasHistoryTree) {
+        maximum = std::max(maximum, node.sequence);
+    }
+    return maximum;
+}
+
+bool MainWindow::hasUnsavedProjectHistory() const
+{
+    if (canvasHistoryTree.isEmpty()) {
+        return false;
+    }
+    for (const CanvasHistoryNode& node : canvasHistoryTree) {
+        if (node.sequence > savedProjectHistorySequence) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool MainWindow::hasExistingProjectData() const
+{
+    return !input_files.isEmpty() || !canvasHistoryTree.isEmpty()
+           || !output_img.empty();
+}
+
+void MainWindow::updateWindowTitle()
+{
+    QString title = QStringLiteral("%1 v%2")
+                        .arg(QCoreApplication::applicationName(),
+                             QCoreApplication::applicationVersion());
+    if (!linkedProjectFilePath.isEmpty()) {
+        title += QStringLiteral(" (%1)").arg(
+            QDir::toNativeSeparators(
+                QFileInfo(linkedProjectFilePath).absoluteFilePath()));
+    }
+    if (hasUnsavedProjectHistory()) {
+        title += QLatin1Char('*');
+    }
+    setWindowTitle(title);
+}
+
+void MainWindow::showProjectOpenDialog()
+{
+    if (isAlignmentOrOptimizationRunning()) {
+        showNonModalMessage(QMessageBox::Information, tr("プロジェクトを開く"),
+                            tr("計算中はプロジェクトを開けません。"));
+        return;
+    }
+
+    auto* dialog = new QFileDialog(
+        this, tr("プロジェクトを開く"), QString(),
+        tr("Image Stitcher Auto プロジェクト (*.isauto)"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setAcceptMode(QFileDialog::AcceptOpen);
+    dialog->setFileMode(QFileDialog::ExistingFile);
+    dialog->setDefaultSuffix(QStringLiteral("isauto"));
+    dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog->setModal(false);
+    dialog->setWindowModality(Qt::NonModal);
+    dialog->resize(AppSettings::windowSize(QStringLiteral("projectOpen"),
+                                           QSize(900, 600)));
+    connect(dialog, &QFileDialog::fileSelected,
+            this, &MainWindow::requestProjectOpen);
+    connect(dialog, &QDialog::finished, dialog, [dialog]() {
+        AppSettings::setWindowSize(QStringLiteral("projectOpen"),
+                                   dialog->size());
+    });
+    dialog->show();
+}
+
+void MainWindow::saveProject()
+{
+    if (linkedProjectFilePath.isEmpty()) {
+        saveProjectAs();
+        return;
+    }
+    saveProjectToPath(linkedProjectFilePath);
+}
+
+void MainWindow::saveProjectAs(std::function<void(bool)> completion)
+{
+    auto* dialog = new QFileDialog(
+        this, tr("名前を付けてプロジェクト保存"), QString(),
+        tr("Image Stitcher Auto プロジェクト (*.isauto)"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setAcceptMode(QFileDialog::AcceptSave);
+    dialog->setFileMode(QFileDialog::AnyFile);
+    dialog->setDefaultSuffix(QStringLiteral("isauto"));
+    dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog->setOption(QFileDialog::DontConfirmOverwrite, true);
+    dialog->setModal(false);
+    dialog->setWindowModality(Qt::NonModal);
+    dialog->resize(AppSettings::windowSize(QStringLiteral("projectSaveAs"),
+                                           QSize(900, 600)));
+    if (!linkedProjectFilePath.isEmpty()) {
+        dialog->selectFile(linkedProjectFilePath);
+    }
+
+    auto completed = std::make_shared<bool>(false);
+    auto finish = [completion = std::move(completion), completed](bool result) {
+        if (*completed) return;
+        *completed = true;
+        if (completion) completion(result);
+    };
+    connect(dialog, &QFileDialog::fileSelected, this,
+            [this, finish](QString path) {
+        if (QFileInfo(path).suffix().compare(QStringLiteral("isauto"),
+                                             Qt::CaseInsensitive) != 0) {
+            path += QStringLiteral(".isauto");
+        }
+        if (!QFileInfo::exists(path)) {
+            finish(saveProjectToPath(path));
+            return;
+        }
+
+        auto* confirmation = new QMessageBox(
+            QMessageBox::Warning, tr("上書き確認"),
+            tr("ファイルは既に存在します。上書きしますか？\n%1")
+                .arg(QDir::toNativeSeparators(path)),
+            QMessageBox::Yes | QMessageBox::No, this);
+        confirmation->setAttribute(Qt::WA_DeleteOnClose);
+        confirmation->setDefaultButton(QMessageBox::No);
+        confirmation->setModal(false);
+        confirmation->setWindowModality(Qt::NonModal);
+        connect(confirmation, &QDialog::finished, this,
+                [this, path, finish](int result) {
+            finish(result == QMessageBox::Yes
+                       ? saveProjectToPath(path) : false);
+        });
+        confirmation->show();
+    });
+    connect(dialog, &QDialog::rejected, this, [finish]() { finish(false); });
+    connect(dialog, &QDialog::finished, dialog, [dialog]() {
+        AppSettings::setWindowSize(QStringLiteral("projectSaveAs"),
+                                   dialog->size());
+    });
+    dialog->show();
+}
+
+bool MainWindow::saveProjectToPath(const QString& requestedPath)
+{
+    if (requestedPath.trimmed().isEmpty()) return false;
+
+    if (optimizationSettingsDialog && optimizationSettingsDialog->isVisible()) {
+        readOptimizationSettingsDialog();
+    }
+    if (leastSquaresSettingsDialog && leastSquaresSettingsDialog->isVisible()) {
+        readLeastSquaresSettingsDialog();
+    }
+    if (mergeSettingsDialog && mergeSettingsDialog->isVisible()) {
+        readMergeSettingsDialog();
+    }
+
+    QString path = QFileInfo(requestedPath).absoluteFilePath();
+    if (QFileInfo(path).suffix().compare(QStringLiteral("isauto"),
+                                         Qt::CaseInsensitive) != 0) {
+        path += QStringLiteral(".isauto");
+    }
+
+    syncPossFromScene();
+
+    QVariantMap project;
+    project.insert(QStringLiteral("format"), QStringLiteral("Image Stitcher Auto"));
+    project.insert(QStringLiteral("applicationVersion"),
+                   QCoreApplication::applicationVersion());
+
+    QVariantList images;
+    QVector<QByteArray> savedImageData;
+    images.reserve(input_files.size());
+    savedImageData.reserve(input_files.size());
+    for (int i = 0; i < input_files.size(); ++i) {
+        QByteArray data = i < projectImageData.size()
+                              ? projectImageData[i]
+                              : QByteArray();
+        if (data.isEmpty() && i < items.size() && items[i]) {
+            data = pixmapAsPng(items[i]->pixmap());
+        }
+        if (data.isEmpty()) {
+            QFile source(input_files[i]);
+            if (source.open(QIODevice::ReadOnly)) {
+                data = source.readAll();
+            }
+        }
+        if (data.isEmpty()) {
+            showNonModalMessage(
+                QMessageBox::Warning, tr("プロジェクト保存"),
+                tr("画像「%1」をプロジェクトへ保存できませんでした。")
+                    .arg(QFileInfo(input_files[i]).fileName()));
+            return false;
+        }
+
+        QVariantMap image;
+        image.insert(QStringLiteral("path"), input_files[i]);
+        image.insert(QStringLiteral("data"), data);
+        const QPoint position = i < items.size() && items[i]
+                                    ? items[i]->pos().toPoint()
+                                    : QPoint();
+        image.insert(QStringLiteral("position"), pointsToVariant({position}).first());
+        image.insert(QStringLiteral("opacity"),
+                     i < toumeido.size() ? toumeido[i] : defaultImageOpacity);
+        image.insert(QStringLiteral("selected"),
+                     i < items.size() && items[i] && items[i]->isSelected());
+        images.push_back(image);
+        savedImageData.push_back(data);
+    }
+    project.insert(QStringLiteral("images"), images);
+
+    QVariantMap settings;
+    const VulkanExecutionOptions vulkanSettings = AppSettings::vulkanOptions();
+    settings.insert(QStringLiteral("applicationTheme"),
+                    static_cast<int>(AppSettings::theme()));
+    settings.insert(QStringLiteral("applicationLanguage"),
+                    static_cast<int>(AppSettings::language()));
+    settings.insert(QStringLiteral("vulkanEnabled"), vulkanSettings.enabled);
+    settings.insert(QStringLiteral("ignoreVramLimit"),
+                    vulkanSettings.ignoreVramLimit);
+    settings.insert(QStringLiteral("vulkanDeviceKey"), vulkanSettings.deviceKey);
+    settings.insert(QStringLiteral("confirmProjectSaveOnClose"),
+                    AppSettings::confirmProjectSaveOnClose());
+    settings.insert(QStringLiteral("horizontalOverlap"), ui->spinBox_2->value());
+    settings.insert(QStringLiteral("verticalOverlap"), ui->spinBox_3->value());
+    settings.insert(QStringLiteral("searchRange"), ui->spinBox->value());
+    settings.insert(QStringLiteral("direction"), ui->cornerSelector->getStatus());
+    settings.insert(QStringLiteral("horizontalCount"), configuredHorizontalImageCount);
+    settings.insert(QStringLiteral("verticalCount"), configuredVerticalImageCount);
+    settings.insert(QStringLiteral("zigzag"), ui->cornerSelector->zigzagChecked());
+    settings.insert(QStringLiteral("layoutLocked"), ui->checkBox->isChecked());
+    settings.insert(QStringLiteral("useCanvasSource"), ui->checkBox_2->isChecked());
+    settings.insert(QStringLiteral("defaultOpacity"), defaultImageOpacity);
+    settings.insert(QStringLiteral("background"),
+                    canvasBackgroundIsTransparent
+                        ? QStringLiteral("none")
+                        : canvasBackgroundColor.name(QColor::HexArgb));
+    settings.insert(QStringLiteral("highlightColor"),
+                    imageHighlightColor.name(QColor::HexArgb));
+    settings.insert(QStringLiteral("highlightIndices"),
+                    intsToVariant(imageHighlightIndices));
+    settings.insert(QStringLiteral("localEnabled"), pa_TF);
+    settings.insert(QStringLiteral("localImageCount"), pa_num);
+    settings.insert(QStringLiteral("localAutoIncrement"), pa_auto_increment_TF);
+    settings.insert(QStringLiteral("localIncrement"), pa_increment);
+    settings.insert(QStringLiteral("localIncrementCount"), pa_increment_count);
+    settings.insert(QStringLiteral("localRadius"), pa_radi);
+    settings.insert(QStringLiteral("localIterations"), pa_opti);
+    settings.insert(QStringLiteral("localLoops"), pa_itr);
+    settings.insert(QStringLiteral("globalEnabled"), all_TF);
+    settings.insert(QStringLiteral("globalRadius"), all_radi);
+    settings.insert(QStringLiteral("globalIterations"), all_opti);
+    settings.insert(QStringLiteral("globalLoops"), all_itr);
+    settings.insert(QStringLiteral("leastRegression"),
+                    leastSquaresSettings.regressionThreshold);
+    settings.insert(QStringLiteral("leastRelative"),
+                    leastSquaresSettings.relativeThreshold);
+    settings.insert(QStringLiteral("leastAbsolute"),
+                    leastSquaresSettings.absoluteThreshold);
+    settings.insert(QStringLiteral("leastPairError"),
+                    leastSquaresSettings.maxPairErrorForRelative);
+    settings.insert(QStringLiteral("mergeMode"),
+                    static_cast<int>(imageMergeSettings.mode));
+    project.insert(QStringLiteral("settings"), settings);
+
+    QVariantList history;
+    history.reserve(canvasHistoryTree.size());
+    for (const CanvasHistoryNode& node : canvasHistoryTree) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("positions"), pointsToVariant(node.positions));
+        entry.insert(QStringLiteral("parent"), node.parent);
+        entry.insert(QStringLiteral("children"), intsToVariant(node.children));
+        entry.insert(QStringLiteral("activeChild"), node.activeChild);
+        entry.insert(QStringLiteral("sequence"), node.sequence);
+        entry.insert(QStringLiteral("markers"), node.markers);
+        history.push_back(entry);
+    }
+    project.insert(QStringLiteral("history"), history);
+    project.insert(QStringLiteral("currentHistoryNode"), currentCanvasHistoryNode);
+    project.insert(QStringLiteral("nextHistorySequence"), nextCanvasHistorySequence);
+
+    QVariantMap calculation;
+    calculation.insert(QStringLiteral("poss"), pointsToVariant(poss));
+    calculation.insert(QStringLiteral("posAll"), pointsToVariant(pos_all));
+    calculation.insert(QStringLiteral("idouDir"), intsToVariant(idou_dir));
+    calculation.insert(QStringLiteral("checkTF"), boolsToVariant(checkTF));
+    calculation.insert(QStringLiteral("checkTFCalc"), boolsToVariant(checkTF_calc));
+    QVector<int> i2idVector;
+    i2idVector.reserve(static_cast<int>(i2id.size()));
+    for (int value : i2id) i2idVector.push_back(value);
+    calculation.insert(QStringLiteral("i2id"), intsToVariant(i2idVector));
+    calculation.insert(QStringLiteral("results"), ifftResultsToVariant(calc_results));
+    calculation.insert(QStringLiteral("rerunResults"),
+                       ifftResultsToVariant(calc_results_re));
+    QVariantList leastDetails;
+    leastDetails.reserve(static_cast<int>(leastSquaresDetails.size()));
+    for (const LeastSquaresPairDetail& detail : leastSquaresDetails) {
+        leastDetails.push_back(leastDetailToVariant(detail));
+    }
+    calculation.insert(QStringLiteral("leastDetails"), leastDetails);
+    QVariantList trwsDetails;
+    if (m_detailDialog) {
+        const std::vector<one_line> detailLines = m_detailDialog->data();
+        trwsDetails.reserve(static_cast<int>(detailLines.size()));
+        for (const one_line& line : detailLines) {
+            QVariantMap entry;
+            entry.insert(QStringLiteral("partial"), line.abst.PaAll);
+            entry.insert(QStringLiteral("start"), line.abst.start);
+            entry.insert(QStringLiteral("end"), line.abst.end);
+            entry.insert(QStringLiteral("iterations"), line.abst.itr);
+            entry.insert(QStringLiteral("loops"), line.abst.loop);
+            entry.insert(QStringLiteral("converged"), line.abst.shuusoku);
+            entry.insert(QStringLiteral("lowSsimCount"), line.abst.lowSSIM_num);
+            entry.insert(QStringLiteral("minSsim"), line.abst.minSSIM);
+            entry.insert(QStringLiteral("energy"), line.abst.energy);
+            entry.insert(QStringLiteral("ssim"), doublesToVariant(line.detail.ssim));
+            QVector<int> edge1;
+            QVector<int> edge2;
+            edge1.reserve(static_cast<int>(line.detail.edge1.size()));
+            edge2.reserve(static_cast<int>(line.detail.edge2.size()));
+            for (int value : line.detail.edge1) edge1.push_back(value);
+            for (int value : line.detail.edge2) edge2.push_back(value);
+            entry.insert(QStringLiteral("edge1"), intsToVariant(edge1));
+            entry.insert(QStringLiteral("edge2"), intsToVariant(edge2));
+            trwsDetails.push_back(entry);
+        }
+    }
+    calculation.insert(QStringLiteral("trwsDetails"), trwsDetails);
+    calculation.insert(QStringLiteral("calc1Finished"), calc1_finished_state);
+    calculation.insert(QStringLiteral("calc2Finished"), calc2_finished_state);
+    calculation.insert(QStringLiteral("good"), ryoukou);
+    calculation.insert(QStringLiteral("label4"), ui->label_4->text());
+    calculation.insert(QStringLiteral("label5"), ui->label_5->text());
+    calculation.insert(QStringLiteral("label6"), ui->label_6->text());
+    calculation.insert(QStringLiteral("label12"), ui->label_12->text());
+    project.insert(QStringLiteral("calculation"), calculation);
+    project.insert(QStringLiteral("createdImage"), encodeMatAsPng(output_img));
+    project.insert(QStringLiteral("outputFile"), output_file);
+    const QPointF viewCenter = ui->graphicsView->mapToScene(
+        ui->graphicsView->viewport()->rect().center());
+    project.insert(QStringLiteral("viewScale"),
+                   ui->graphicsView->transform().m11());
+    project.insert(QStringLiteral("viewCenterX"), viewCenter.x());
+    project.insert(QStringLiteral("viewCenterY"), viewCenter.y());
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        showNonModalMessage(QMessageBox::Warning, tr("プロジェクト保存"),
+                            tr("プロジェクトファイルを開けませんでした。\n%1")
+                                .arg(file.errorString()));
+        return false;
+    }
+    QDataStream stream(&file);
+    stream.setVersion(QDataStream::Qt_5_12);
+    stream << kProjectMagic << kProjectSchemaVersion << project;
+    if (stream.status() != QDataStream::Ok || !file.commit()) {
+        showNonModalMessage(QMessageBox::Warning, tr("プロジェクト保存"),
+                            tr("プロジェクトファイルの保存に失敗しました。"));
+        return false;
+    }
+
+    linkedProjectFilePath = path;
+    projectImageData = savedImageData;
+    savedProjectHistorySequence = maximumCanvasHistorySequence();
+    updateWindowTitle();
+    if (statusMessageLabel) {
+        statusMessageLabel->setText(
+            tr("プロジェクトを保存しました: %1")
+                .arg(QDir::toNativeSeparators(path)));
+    }
+    return true;
+}
+
+void MainWindow::requestProjectOpen(const QString& path)
+{
+    if (path.trimmed().isEmpty()) return;
+    if (isAlignmentOrOptimizationRunning()) {
+        showNonModalMessage(QMessageBox::Information, tr("プロジェクトを開く"),
+                            tr("計算中はプロジェクトを開けません。"));
+        return;
+    }
+    if (hasExistingProjectData()) {
+        showProjectReplacementPrompt(path);
+    } else {
+        loadProjectFromPath(path);
+    }
+}
+
+void MainWindow::showProjectReplacementPrompt(const QString& path)
+{
+    auto* box = new QMessageBox(QMessageBox::Question,
+                                tr("プロジェクトを開く"),
+                                tr("既存のデータを上書きしますか？"),
+                                QMessageBox::NoButton, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setModal(false);
+    box->setWindowModality(Qt::NonModal);
+    QPushButton* saveButton = box->addButton(
+        tr("既存のデータを保存"), QMessageBox::AcceptRole);
+    QPushButton* discardButton = box->addButton(
+        tr("既存のデータを破棄"), QMessageBox::DestructiveRole);
+    QPushButton* cancelButton = box->addButton(
+        tr("キャンセル"), QMessageBox::RejectRole);
+    connect(box, &QMessageBox::buttonClicked, this,
+            [this, box, path, saveButton, discardButton, cancelButton](
+                QAbstractButton* clicked) {
+        if (clicked == saveButton) {
+            saveProjectAs([this, path](bool saved) {
+                if (saved) loadProjectFromPath(path);
+            });
+        } else if (clicked == discardButton) {
+            loadProjectFromPath(path);
+        } else if (clicked == cancelButton) {
+            // Explicitly keep the current project.
+        }
+        box->close();
+    });
+    box->show();
+}
+
+bool MainWindow::loadProjectFromPath(const QString& requestedPath)
+{
+    const QString path = QFileInfo(requestedPath).absoluteFilePath();
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        showNonModalMessage(QMessageBox::Warning, tr("プロジェクトを開く"),
+                            tr("プロジェクトファイルを開けませんでした。\n%1")
+                                .arg(file.errorString()));
+        return false;
+    }
+
+    quint32 magic = 0;
+    quint16 schemaVersion = 0;
+    QVariantMap project;
+    QDataStream stream(&file);
+    stream.setVersion(QDataStream::Qt_5_12);
+    stream >> magic >> schemaVersion >> project;
+    if (stream.status() != QDataStream::Ok || magic != kProjectMagic
+        || schemaVersion == 0 || schemaVersion > kProjectSchemaVersion) {
+        showNonModalMessage(QMessageBox::Warning, tr("プロジェクトを開く"),
+                            tr("対応していない、または破損したプロジェクトファイルです。"));
+        return false;
+    }
+
+    const QVariantList imageEntries = project.value(QStringLiteral("images")).toList();
+    QStringList paths;
+    QVector<QByteArray> imageData;
+    QVector<QPoint> positions;
+    QVector<int> opacities;
+    QVector<bool> selections;
+    paths.reserve(imageEntries.size());
+    imageData.reserve(imageEntries.size());
+    positions.reserve(imageEntries.size());
+    opacities.reserve(imageEntries.size());
+    selections.reserve(imageEntries.size());
+    for (int i = 0; i < imageEntries.size(); ++i) {
+        const QVariantMap entry = imageEntries[i].toMap();
+        const QByteArray data = entry.value(QStringLiteral("data")).toByteArray();
+        QPixmap validation;
+        validation.loadFromData(data);
+        if (data.isEmpty() || validation.isNull()) {
+            showNonModalMessage(
+                QMessageBox::Warning, tr("プロジェクトを開く"),
+                tr("プロジェクト内の%1枚目の画像を復元できません。")
+                    .arg(i + 1));
+            return false;
+        }
+        QString originalPath = entry.value(QStringLiteral("path")).toString();
+        if (originalPath.isEmpty()) {
+            originalPath = tr("プロジェクト画像_%1.png").arg(i + 1);
+        }
+        paths.push_back(originalPath);
+        imageData.push_back(data);
+        positions.push_back(pointsFromVariant(
+            QVariantList{entry.value(QStringLiteral("position"))}).value(0));
+        opacities.push_back(std::clamp(
+            entry.value(QStringLiteral("opacity"), 0).toInt(), 0, 100));
+        selections.push_back(entry.value(QStringLiteral("selected")).toBool());
+    }
+
+    const QVariantMap settings = project.value(QStringLiteral("settings")).toMap();
+    if (fileInputDialog) {
+        fileInputDialog->close();
+    }
+    const bool previousSuppression = suppressSettingsPersistence;
+    suppressSettingsPersistence = true;
+    const ApplicationTheme projectTheme = static_cast<ApplicationTheme>(std::clamp(
+        settings.value(QStringLiteral("applicationTheme"),
+                       static_cast<int>(AppSettings::theme())).toInt(), 0, 2));
+    const ApplicationLanguage projectLanguage = static_cast<ApplicationLanguage>(std::clamp(
+        settings.value(QStringLiteral("applicationLanguage"),
+                       static_cast<int>(AppSettings::language())).toInt(), 0, 2));
+    AppSettings::setTheme(projectTheme);
+    AppSettings::setLanguage(projectLanguage);
+    AppSettings::setVulkanEnabled(
+        settings.value(QStringLiteral("vulkanEnabled"),
+                       AppSettings::vulkanOptions().enabled).toBool());
+    AppSettings::setIgnoreVramLimit(
+        settings.value(QStringLiteral("ignoreVramLimit"),
+                       AppSettings::vulkanOptions().ignoreVramLimit).toBool());
+    AppSettings::setVulkanDeviceKey(
+        settings.value(QStringLiteral("vulkanDeviceKey"),
+                       AppSettings::vulkanOptions().deviceKey).toString());
+    AppSettings::setConfirmProjectSaveOnClose(
+        settings.value(QStringLiteral("confirmProjectSaveOnClose"),
+                       AppSettings::confirmProjectSaveOnClose()).toBool());
+    defaultImageOpacity = std::clamp(
+        settings.value(QStringLiteral("defaultOpacity"), defaultImageOpacity).toInt(),
+        0, 100);
+    File_input(input_files, paths, imageData);
+
+    set_over_value(
+        std::clamp(settings.value(QStringLiteral("horizontalOverlap"), 25).toInt(), 1, 100),
+        std::clamp(settings.value(QStringLiteral("verticalOverlap"), 25).toInt(), 1, 100),
+        std::clamp(settings.value(QStringLiteral("searchRange"), 15).toInt(), 0, 100));
+    set_array_value(
+        std::clamp(settings.value(QStringLiteral("direction"), 8).toInt(), 1, 8),
+        std::max(0, settings.value(QStringLiteral("horizontalCount"), 0).toInt()),
+        std::max(0, settings.value(QStringLiteral("verticalCount"), 0).toInt()));
+    set_zigzag_value(settings.value(QStringLiteral("zigzag"), true).toBool() ? 1 : 0);
+
+    pa_TF = settings.value(QStringLiteral("localEnabled"), false).toBool();
+    pa_num = std::clamp(settings.value(QStringLiteral("localImageCount"), 6).toInt(), 4, 100);
+    pa_auto_increment_TF =
+        settings.value(QStringLiteral("localAutoIncrement"), false).toBool();
+    pa_increment = std::clamp(settings.value(QStringLiteral("localIncrement"), 0).toInt(), 0, 100);
+    pa_increment_count =
+        std::clamp(settings.value(QStringLiteral("localIncrementCount"), 1).toInt(), 1, 100);
+    pa_radi = std::clamp(settings.value(QStringLiteral("localRadius"), 2).toInt(), 1, 10);
+    pa_opti = std::clamp(settings.value(QStringLiteral("localIterations"), 5000).toInt(), 20, 100000);
+    pa_itr = std::clamp(settings.value(QStringLiteral("localLoops"), 4).toInt(), 1, 20);
+    all_TF = settings.value(QStringLiteral("globalEnabled"), true).toBool();
+    all_radi = std::clamp(settings.value(QStringLiteral("globalRadius"), 2).toInt(), 1, 10);
+    all_opti = std::clamp(settings.value(QStringLiteral("globalIterations"), 10000).toInt(), 20, 100000);
+    all_itr = std::clamp(settings.value(QStringLiteral("globalLoops"), 10).toInt(), 1, 50);
+    leastSquaresSettings.regressionThreshold =
+        std::clamp(settings.value(QStringLiteral("leastRegression"), 0.3).toDouble(), 0.0, 1.0);
+    leastSquaresSettings.relativeThreshold =
+        std::clamp(settings.value(QStringLiteral("leastRelative"), 2.5).toDouble(), 0.0, 100.0);
+    leastSquaresSettings.absoluteThreshold =
+        std::clamp(settings.value(QStringLiteral("leastAbsolute"), 3.5).toDouble(), 0.0, 1000.0);
+    leastSquaresSettings.maxPairErrorForRelative =
+        std::clamp(settings.value(QStringLiteral("leastPairError"), 0.95).toDouble(), 0.0, 1000.0);
+    imageMergeSettings.mode = static_cast<ImageMergeMode>(std::clamp(
+        settings.value(QStringLiteral("mergeMode"), 1).toInt(), 0, 3));
+    applyCanvasBackgroundSetting(
+        settings.value(QStringLiteral("background"), QStringLiteral("black")).toString());
+    imageHighlightColor = QColor(
+        settings.value(QStringLiteral("highlightColor"),
+                       QStringLiteral("#ff4040")).toString());
+    if (!imageHighlightColor.isValid()) imageHighlightColor = QColor(255, 64, 64);
+    imageHighlightIndices =
+        intsFromVariant(settings.value(QStringLiteral("highlightIndices")));
+
+    if (positions.size() == items.size()) {
+        applyCanvasPositions(positions);
+    }
+    toumeido = opacities;
+    {
+        const QSignalBlocker opacitySliderBlocker(ui->sliderOpacity1);
+        const QSignalBlocker opacitySpinBlocker(ui->spinOpacity1);
+        ui->sliderOpacity1->setValue(defaultImageOpacity);
+        ui->spinOpacity1->setValue(defaultImageOpacity);
+        for (int i = 0; i < items.size(); ++i) {
+            if (!items[i]) continue;
+            const int opacity = i < toumeido.size()
+                                    ? toumeido[i] : defaultImageOpacity;
+            items[i]->setOpacity((100 - opacity) / 100.0);
+            items[i]->setSelected(i < selections.size() && selections[i]);
+        }
+    }
+    ui->checkBox_2->setChecked(
+        settings.value(QStringLiteral("useCanvasSource"), false).toBool());
+    ui->checkBox->setChecked(
+        settings.value(QStringLiteral("layoutLocked"), false).toBool());
+    posi_lock(ui->checkBox->isChecked());
+
+    canvasHistoryTree.clear();
+    const QVariantList history = project.value(QStringLiteral("history")).toList();
+    canvasHistoryTree.reserve(history.size());
+    bool validHistory = true;
+    for (const QVariant& item : history) {
+        const QVariantMap entry = item.toMap();
+        CanvasHistoryNode node;
+        node.positions = pointsFromVariant(entry.value(QStringLiteral("positions")));
+        node.parent = entry.value(QStringLiteral("parent"), -1).toInt();
+        node.children = intsFromVariant(entry.value(QStringLiteral("children")));
+        node.activeChild = entry.value(QStringLiteral("activeChild"), -1).toInt();
+        node.sequence = entry.value(QStringLiteral("sequence"), 0).toInt();
+        node.markers = entry.value(QStringLiteral("markers"), 0).toInt();
+        if (node.positions.size() != items.size()) validHistory = false;
+        canvasHistoryTree.push_back(node);
+    }
+    for (int i = 0; i < canvasHistoryTree.size() && validHistory; ++i) {
+        const CanvasHistoryNode& node = canvasHistoryTree[i];
+        if (node.parent < -1 || node.parent >= canvasHistoryTree.size()
+            || node.activeChild < -1
+            || node.activeChild >= canvasHistoryTree.size()
+            || node.sequence <= 0) {
+            validHistory = false;
+            break;
+        }
+        for (int child : node.children) {
+            if (child < 0 || child >= canvasHistoryTree.size()) {
+                validHistory = false;
+                break;
+            }
+        }
+    }
+    if (!validHistory) canvasHistoryTree.clear();
+    currentCanvasHistoryNode = project.value(
+        QStringLiteral("currentHistoryNode"), -1).toInt();
+    if (currentCanvasHistoryNode < 0
+        || currentCanvasHistoryNode >= canvasHistoryTree.size()) {
+        currentCanvasHistoryNode = canvasHistoryTree.isEmpty()
+                                       ? -1 : canvasHistoryTree.size() - 1;
+    }
+    nextCanvasHistorySequence = std::max(
+        maximumCanvasHistorySequence() + 1,
+        project.value(QStringLiteral("nextHistorySequence"), 1).toInt());
+    if (canvasHistoryTree.isEmpty() && !items.isEmpty()) {
+        CanvasHistoryNode node;
+        node.positions = readScenePositions();
+        node.sequence = 1;
+        canvasHistoryTree.push_back(node);
+        currentCanvasHistoryNode = 0;
+        nextCanvasHistorySequence = 2;
+    }
+
+    const QVariantMap calculation =
+        project.value(QStringLiteral("calculation")).toMap();
+    poss = pointsFromVariant(calculation.value(QStringLiteral("poss")));
+    pos_all = pointsFromVariant(calculation.value(QStringLiteral("posAll")));
+    if (poss.size() != items.size()) poss = readScenePositions();
+    if (pos_all.size() != items.size()) pos_all = poss;
+    idou_dir = intsFromVariant(calculation.value(QStringLiteral("idouDir")));
+    checkTF = boolsFromVariant(calculation.value(QStringLiteral("checkTF")));
+    checkTF_calc = boolsFromVariant(
+        calculation.value(QStringLiteral("checkTFCalc")));
+    const QVector<int> restoredI2id =
+        intsFromVariant(calculation.value(QStringLiteral("i2id")));
+    i2id.assign(restoredI2id.begin(), restoredI2id.end());
+    calc_results = ifftResultsFromVariant(
+        calculation.value(QStringLiteral("results")));
+    calc_results_re = ifftResultsFromVariant(
+        calculation.value(QStringLiteral("rerunResults")));
+    leastSquaresDetails.clear();
+    for (const QVariant& detail :
+         calculation.value(QStringLiteral("leastDetails")).toList()) {
+        leastSquaresDetails.push_back(leastDetailFromVariant(detail));
+    }
+    std::vector<one_line> restoredTrwsDetails;
+    const QVariantList trwsDetails =
+        calculation.value(QStringLiteral("trwsDetails")).toList();
+    restoredTrwsDetails.reserve(static_cast<size_t>(trwsDetails.size()));
+    for (const QVariant& detailValue : trwsDetails) {
+        const QVariantMap entry = detailValue.toMap();
+        one_line line{};
+        line.abst.PaAll = entry.value(QStringLiteral("partial")).toBool();
+        line.abst.start = entry.value(QStringLiteral("start")).toInt();
+        line.abst.end = entry.value(QStringLiteral("end")).toInt();
+        line.abst.itr = entry.value(QStringLiteral("iterations")).toInt();
+        line.abst.loop = entry.value(QStringLiteral("loops")).toInt();
+        line.abst.shuusoku = entry.value(QStringLiteral("converged")).toBool();
+        line.abst.lowSSIM_num =
+            entry.value(QStringLiteral("lowSsimCount")).toInt();
+        line.abst.minSSIM = entry.value(QStringLiteral("minSsim")).toDouble();
+        line.abst.energy = entry.value(QStringLiteral("energy")).toDouble();
+        line.detail.ssim = doublesFromVariant(entry.value(QStringLiteral("ssim")));
+        const QVector<int> edge1 =
+            intsFromVariant(entry.value(QStringLiteral("edge1")));
+        const QVector<int> edge2 =
+            intsFromVariant(entry.value(QStringLiteral("edge2")));
+        line.detail.edge1.assign(edge1.begin(), edge1.end());
+        line.detail.edge2.assign(edge2.begin(), edge2.end());
+        if (line.detail.ssim.size() == line.detail.edge1.size()
+            && line.detail.ssim.size() == line.detail.edge2.size()) {
+            restoredTrwsDetails.push_back(std::move(line));
+        }
+    }
+    if (m_detailDialog) {
+        m_detailDialog->setAllData(restoredTrwsDetails);
+    }
+    calc1_finished_state =
+        calculation.value(QStringLiteral("calc1Finished"), false).toBool();
+    calc2_finished_state =
+        calculation.value(QStringLiteral("calc2Finished"), false).toBool();
+    ryoukou = calculation.value(QStringLiteral("good"), false).toBool();
+    ui->label_4->setText(calculation.value(QStringLiteral("label4")).toString());
+    ui->label_5->setText(calculation.value(QStringLiteral("label5")).toString());
+    ui->label_6->setText(calculation.value(QStringLiteral("label6")).toString());
+    ui->label_12->setText(calculation.value(QStringLiteral("label12")).toString());
+
+    output_img = decodeEmbeddedImage(
+        project.value(QStringLiteral("createdImage")).toByteArray());
+    output_file = project.value(QStringLiteral("outputFile")).toString();
+    const double viewScale = std::clamp(
+        project.value(QStringLiteral("viewScale"), 1.0).toDouble(),
+        0.01, 100.0);
+    ui->graphicsView->setTransform(QTransform::fromScale(viewScale, viewScale));
+    ui->graphicsView->centerOn(
+        project.value(QStringLiteral("viewCenterX"), 0.0).toDouble(),
+        project.value(QStringLiteral("viewCenterY"), 0.0).toDouble());
+    updateZoomLabel();
+    res_all.resize(items.size());
+    imgs.resize(static_cast<size_t>(items.size()));
+    for (int i = 0; i < items.size(); ++i) {
+        res_all[i] = items[i] ? items[i]->pixmap().size() : QSize();
+        if (items[i]) {
+            imgs[static_cast<size_t>(i)] = ImageUtils::qimage_to_mat_bgra(
+                items[i]->pixmap().toImage());
+        }
+    }
+
+    ui->pushButton_Calc1->setEnabled(!items.isEmpty());
+    ui->pushButton_2->setEnabled(calc1_finished_state);
+    ui->pushButton_3->setEnabled(calc1_finished_state && (pa_TF || all_TF));
+    ui->pushButton_8->setEnabled(calc1_finished_state && items.size() > 1);
+    ui->pushButton_4->setEnabled(!output_img.empty());
+    ui->pushButton->setEnabled(!calc_results.isEmpty());
+    ui->pushButton_5->setEnabled(calc2_finished_state
+                                 && !restoredTrwsDetails.empty());
+    ui->pushButton_9->setEnabled(!leastSquaresDetails.empty());
+    if (optimizationSettingsDialog) {
+        optimizationSettingsDialog->setValues(
+            pa_num, pa_radi, pa_opti, pa_itr,
+            all_radi, all_opti, all_itr,
+            pa_TF, all_TF, pa_auto_increment_TF,
+            pa_increment, pa_increment_count);
+    }
+    if (leastSquaresSettingsDialog) {
+        leastSquaresSettingsDialog->setValues(
+            leastSquaresSettings.regressionThreshold,
+            leastSquaresSettings.relativeThreshold,
+            leastSquaresSettings.absoluteThreshold,
+            leastSquaresSettings.maxPairErrorForRelative);
+    }
+    if (mergeSettingsDialog) {
+        mergeSettingsDialog->setMode(static_cast<int>(imageMergeSettings.mode));
+    }
+    if (canvasBackgroundDialog && canvasNoColorCheck
+        && canvasBackgroundColorPicker) {
+        canvasNoColorCheck->setChecked(canvasBackgroundIsTransparent);
+        canvasBackgroundColorPicker->setCurrentColor(canvasBackgroundColor);
+        canvasBackgroundColorPicker->setEnabled(!canvasBackgroundIsTransparent);
+    }
+
+    suppressSettingsPersistence = previousSuppression;
+    AlignmentDefaultSettings restoredAlignment;
+    restoredAlignment.horizontalOverlapPercent = ui->spinBox_2->value();
+    restoredAlignment.verticalOverlapPercent = ui->spinBox_3->value();
+    restoredAlignment.searchRangePercent = ui->spinBox->value();
+    AppSettings::setAlignmentOptions(restoredAlignment);
+    ArrangementDefaultSettings restoredArrangement;
+    restoredArrangement.direction = ui->cornerSelector->getStatus();
+    restoredArrangement.horizontalImageCount = configuredHorizontalImageCount;
+    restoredArrangement.verticalImageCount = configuredVerticalImageCount;
+    restoredArrangement.zigzag = ui->cornerSelector->zigzagChecked();
+    AppSettings::setArrangementOptions(restoredArrangement);
+    TrwsPamiDefaultSettings restoredTrws;
+    restoredTrws.localEnabled = pa_TF;
+    restoredTrws.localImageCount = pa_num;
+    restoredTrws.localAutoIncrement = pa_auto_increment_TF;
+    restoredTrws.localImageCountIncrement = pa_increment;
+    restoredTrws.localIncrementCount = pa_increment_count;
+    restoredTrws.localSearchRadius = pa_radi;
+    restoredTrws.localMaxIterations = pa_opti;
+    restoredTrws.localMaxLoops = pa_itr;
+    restoredTrws.globalEnabled = all_TF;
+    restoredTrws.globalSearchRadius = all_radi;
+    restoredTrws.globalMaxIterations = all_opti;
+    restoredTrws.globalMaxLoops = all_itr;
+    AppSettings::setTrwsPamiOptions(restoredTrws);
+    LeastSquaresDefaultSettings restoredLeastSquares;
+    restoredLeastSquares.regressionThreshold =
+        leastSquaresSettings.regressionThreshold;
+    restoredLeastSquares.relativeThreshold = leastSquaresSettings.relativeThreshold;
+    restoredLeastSquares.absoluteThreshold = leastSquaresSettings.absoluteThreshold;
+    restoredLeastSquares.maxPairErrorForRelative =
+        leastSquaresSettings.maxPairErrorForRelative;
+    AppSettings::setLeastSquaresOptions(restoredLeastSquares);
+    ImageMergeDefaultSettings restoredMerge;
+    restoredMerge.mode = static_cast<int>(imageMergeSettings.mode);
+    AppSettings::setImageMergeOptions(restoredMerge);
+    AppSettings::setCanvasBackground(
+        canvasBackgroundIsTransparent
+            ? QStringLiteral("none")
+            : canvasBackgroundColor.name(QColor::HexArgb));
+    applyApplicationTheme(projectTheme);
+    applyApplicationLanguage(projectLanguage);
+    if (applicationSettingsDialog) {
+        applicationSettingsDialog->reloadFromSettings();
+    }
+    rebuildImageHighlights();
+    refreshCanvasHistoryDialog();
+    linkedProjectFilePath = path;
+    savedProjectHistorySequence = maximumCanvasHistorySequence();
+    updateWindowTitle();
+    if (statusMessageLabel) {
+        statusMessageLabel->setText(
+            tr("プロジェクトを開きました: %1")
+                .arg(QDir::toNativeSeparators(path)));
+    }
+    return true;
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    if (allowCloseWithoutProjectPrompt
+        || !AppSettings::confirmProjectSaveOnClose()
+        || !hasUnsavedProjectHistory()) {
+        event->accept();
+        return;
+    }
+
+    event->ignore();
+    if (projectClosePromptOpen) return;
+    projectClosePromptOpen = true;
+
+    auto* box = new QMessageBox(QMessageBox::Question,
+                                tr("プロジェクト保存"),
+                                tr("保存されていない変更履歴があります。プロジェクトを保存しますか？"),
+                                QMessageBox::NoButton, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setModal(false);
+    box->setWindowModality(Qt::NonModal);
+    QPushButton* saveButton = box->addButton(tr("プロジェクト保存"),
+                                              QMessageBox::AcceptRole);
+    QPushButton* discardButton = box->addButton(tr("保存せず終了"),
+                                                 QMessageBox::DestructiveRole);
+    QPushButton* cancelButton = box->addButton(tr("キャンセル"),
+                                                QMessageBox::RejectRole);
+    connect(box, &QDialog::finished, this, [this]() {
+        projectClosePromptOpen = false;
+    });
+    connect(box, &QMessageBox::buttonClicked, this,
+            [this, box, saveButton, discardButton, cancelButton](
+                QAbstractButton* clicked) {
+        projectClosePromptOpen = false;
+        if (clicked == saveButton) {
+            if (!linkedProjectFilePath.isEmpty()) {
+                if (saveProjectToPath(linkedProjectFilePath)) {
+                    allowCloseWithoutProjectPrompt = true;
+                    close();
+                }
+            } else {
+                saveProjectAs([this](bool saved) {
+                    if (saved) {
+                        allowCloseWithoutProjectPrompt = true;
+                        close();
+                    }
+                });
+            }
+        } else if (clicked == discardButton) {
+            allowCloseWithoutProjectPrompt = true;
+            close();
+        } else if (clicked == cancelButton) {
+            // Keep the window open.
+        }
+        box->close();
+    });
+    box->show();
+}
+
 void MainWindow::startDelayedVulkanDetection()
 {
     if (vulkanScanWatcher->isRunning()) {
@@ -1453,13 +2604,14 @@ void MainWindow::File_input_check(QStringList cli_paths)
 {
     // 再帰的展開
     QStringList result;
+    QStringList unreadableFiles;
     QSet<QString> seen;
 
     for (const QString& path : cli_paths) {
         QFileInfo info(path);
 
         if (!info.exists()) {
-            // 存在しないパスは無視
+            unreadableFiles.push_back(path);
             continue;
         }
 
@@ -1503,6 +2655,7 @@ void MainWindow::File_input_check(QStringList cli_paths)
 
         // 読み取り不可ならスキップ（fiw_filesにも入れない）
         if (img.isNull()) {
+            unreadableFiles.push_back(path);
             continue;
         }
 
@@ -1512,6 +2665,8 @@ void MainWindow::File_input_check(QStringList cli_paths)
 
     QStringList file_null;
     File_input(file_null,validFiles);
+
+    showUnsupportedFilesDialog(unreadableFiles, this);
 
     ui->pushButton_1->setEnabled(true);
     ui->pushButton_1->setText(tr("入力画像"));
@@ -1570,11 +2725,33 @@ void MainWindow::handleCanvasFilesDropped(const QStringList& paths)
         return;
     }
 
+    QStringList droppedProjectFiles;
+    for (const QString& path : paths) {
+        const QFileInfo info(path);
+        if (info.isFile()
+            && info.suffix().compare(QStringLiteral("isauto"),
+                                     Qt::CaseInsensitive) == 0) {
+            droppedProjectFiles.push_back(info.absoluteFilePath());
+        }
+    }
+    if (!droppedProjectFiles.isEmpty()) {
+        if (paths.size() != 1 || droppedProjectFiles.size() != 1) {
+            showNonModalMessage(
+                QMessageBox::Warning, tr("プロジェクトを開く"),
+                tr("プロジェクトを開くには、1つの.isautoファイルだけをドロップしてください。"));
+            return;
+        }
+        requestProjectOpen(droppedProjectFiles.first());
+        return;
+    }
+
     QStringList expandedFiles;
+    QStringList unreadableFiles;
     QSet<QString> seen;
     for (const QString& path : paths) {
         const QFileInfo info(path);
         if (!info.exists()) {
+            unreadableFiles.push_back(path);
             continue;
         }
         if (info.isFile()) {
@@ -1609,9 +2786,12 @@ void MainWindow::handleCanvasFilesDropped(const QStringList& paths)
         reader.setAutoTransform(true);
         if (!reader.read().isNull()) {
             readableFiles.push_back(path);
+        } else {
+            unreadableFiles.push_back(path);
         }
     }
     if (readableFiles.isEmpty()) {
+        showUnsupportedFilesDialog(unreadableFiles, this);
         if (statusMessageLabel) {
             statusMessageLabel->setText(tr("読み込める画像ファイルがありません。"));
         }
@@ -1621,6 +2801,7 @@ void MainWindow::handleCanvasFilesDropped(const QStringList& paths)
     QStringList updatedFiles = input_files;
     updatedFiles.append(readableFiles);
     File_input(input_files, updatedFiles);
+    showUnsupportedFilesDialog(unreadableFiles, this);
     if (statusMessageLabel) {
         statusMessageLabel->setText(
             tr("%1 個の画像ファイルを追加しました。").arg(readableFiles.size()));
@@ -1722,7 +2903,9 @@ void MainWindow::run_manual(int cal_st) {
 
 
 // ファイル入力ウィザードでok押した時に実行
-void MainWindow::File_input(const QStringList& paths_old, const QStringList& paths_new)
+void MainWindow::File_input(const QStringList& paths_old,
+                            const QStringList& paths_new,
+                            const QVector<QByteArray>& embeddedImageData)
 {
     clearImageHighlights();
 
@@ -1733,16 +2916,41 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
     const int n_max = std::max(n_new, n_old);
 
     // 適用前に全画像を検証して、途中失敗による状態不整合を避ける
+    const bool suppliedEmbeddedData = embeddedImageData.size() == n_new;
+    QVector<QByteArray> imageDataNew(n_new);
     QVector<QPixmap> pix_new(n_new);
+    QStringList unreadableFiles;
     for (int i = 0; i < n_new; ++i) {
-        QPixmap pix(paths_new[i]);
-        if (pix.isNull()) {
-            showNonModalMessage(
-                QMessageBox::Warning, tr("エラー"),
-                tr("%1枚目の画像の読み込みに失敗しました。\nファイル入力ウィザードから削除してください。").arg(i + 1));
-            return;
+        if (suppliedEmbeddedData) {
+            imageDataNew[i] = embeddedImageData[i];
+        } else {
+            int oldImageIndex = -1;
+            if (i < n_old && paths_old.value(i) == paths_new[i]) {
+                oldImageIndex = i;
+            } else {
+                oldImageIndex = paths_old.indexOf(paths_new[i]);
+            }
+            if (oldImageIndex >= 0
+                && oldImageIndex < projectImageData.size()) {
+                imageDataNew[i] = projectImageData[oldImageIndex];
+            }
         }
-        pix_new[i] = pix;
+
+        QPixmap pix;
+        if (!imageDataNew[i].isEmpty()) {
+            pix.loadFromData(imageDataNew[i]);
+        } else {
+            pix.load(paths_new[i]);
+        }
+        if (pix.isNull()) {
+            unreadableFiles.push_back(paths_new[i]);
+        } else {
+            pix_new[i] = pix;
+        }
+    }
+    if (!unreadableFiles.isEmpty()) {
+        showUnsupportedFilesDialog(unreadableFiles, this);
+        return;
     }
 
     // items は「new の個数」に合わせる
@@ -1783,7 +2991,10 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
         }
 
         // (C) 両方に存在 → 同じなら何もしない
-        if (paths_old[i] == paths_new[i]) {
+        const QByteArray oldData = i < projectImageData.size()
+                                       ? projectImageData[i]
+                                       : QByteArray();
+        if (paths_old[i] == paths_new[i] && oldData == imageDataNew[i]) {
             continue;
         }
 
@@ -1815,6 +3026,8 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
         it->setZValue(i + 1);
     }
     input_files = paths_new;
+    projectImageData = imageDataNew;
+    imgs.clear();
     const int requestedHorizontalImageCount = configuredHorizontalImageCount;
     const int requestedVerticalImageCount = configuredVerticalImageCount;
     const int requestedDirection = ui->cornerSelector->getStatus();
@@ -1840,6 +3053,17 @@ void MainWindow::File_input(const QStringList& paths_old, const QStringList& pat
     ui->label_4->setText("");
     ui->pushButton_9->setEnabled(false);
     leastSquaresDetails.clear();
+    if (m_detailDialog) m_detailDialog->clearData();
+    calc_results.clear();
+    calc_results_re.clear();
+    checkTF.clear();
+    checkTF_calc.clear();
+    idou_dir.clear();
+    i2id.clear();
+    calc2_finished_state = false;
+    ryoukou = false;
+    ui->pushButton->setEnabled(false);
+    ui->pushButton_5->setEnabled(false);
     applySceneMoveMode(!ui->checkBox->isChecked());
     invalidateCreatedImage();
     recordCanvasHistory();
@@ -1859,6 +3083,9 @@ void MainWindow::deleteSelectedItems()
         int idx = items.indexOf(static_cast<QGraphicsPixmapItem*>(it)); // itemsの型に合わせる
         if (idx >= 0) {
             input_files.removeAt(idx);
+            if (idx < projectImageData.size()) {
+                projectImageData.removeAt(idx);
+            }
             items.removeAt(idx);
             itemById.remove(idx);
         }
@@ -1880,6 +3107,17 @@ void MainWindow::deleteSelectedItems()
     ui->label_4->setText("");
     ui->pushButton_9->setEnabled(false);
     leastSquaresDetails.clear();
+    if (m_detailDialog) m_detailDialog->clearData();
+    calc_results.clear();
+    calc_results_re.clear();
+    checkTF.clear();
+    checkTF_calc.clear();
+    idou_dir.clear();
+    i2id.clear();
+    calc2_finished_state = false;
+    ryoukou = false;
+    ui->pushButton->setEnabled(false);
+    ui->pushButton_5->setEnabled(false);
     applySceneMoveMode(!ui->checkBox->isChecked());
     recordCanvasHistory();
 }
@@ -2019,11 +3257,13 @@ void MainWindow::recordCanvasHistory(int markers)
         invalidateCreatedImage();
         canvasHistoryTree.clear();
         currentCanvasHistoryNode = -1;
-        nextCanvasHistorySequence = 1;
+        nextCanvasHistorySequence = std::max(
+            nextCanvasHistorySequence, savedProjectHistorySequence + 1);
         poss.clear();
         pos_all.clear();
         clearImageHighlights();
         refreshCanvasHistoryDialog();
+        updateWindowTitle();
         return;
     }
 
@@ -2036,7 +3276,8 @@ void MainWindow::recordCanvasHistory(int markers)
         canvasHistoryTree[currentCanvasHistoryNode].positions.size() != positions.size()) {
         canvasHistoryTree.clear();
         currentCanvasHistoryNode = -1;
-        nextCanvasHistorySequence = 1;
+        nextCanvasHistorySequence = std::max(
+            nextCanvasHistorySequence, savedProjectHistorySequence + 1);
     } else if (validCurrent &&
                samePositions(canvasHistoryTree[currentCanvasHistoryNode].positions, positions)) {
         if (markers == CanvasHistoryMarkerNone) {
@@ -2071,6 +3312,7 @@ void MainWindow::recordCanvasHistory(int markers)
     pos_all = positions;
     rebuildImageHighlights();
     refreshCanvasHistoryDialog();
+    updateWindowTitle();
 }
 
 void MainWindow::undoCanvasHistory()
@@ -2678,6 +3920,11 @@ void MainWindow::setCalculationUiLocked(bool locked)
                 applicationSettingsAction->isEnabled();
             applicationSettingsAction->setEnabled(false);
         }
+        if (fileMenu) fileMenu->setEnabled(false);
+        if (projectOpenAction) projectOpenAction->setEnabled(false);
+        if (projectSaveAction) projectSaveAction->setEnabled(false);
+        if (projectSaveAsAction) projectSaveAsAction->setEnabled(false);
+        if (projectPngExportAction) projectPngExportAction->setEnabled(false);
         if (optimizationSettingsDialog) optimizationSettingsDialog->setEnabled(false);
         if (leastSquaresSettingsDialog) leastSquaresSettingsDialog->setEnabled(false);
         if (mergeSettingsDialog) mergeSettingsDialog->setEnabled(false);
@@ -2696,6 +3943,11 @@ void MainWindow::setCalculationUiLocked(bool locked)
             applicationSettingsAction->setEnabled(
                 applicationSettingsActionEnabledBeforeCalculation);
         }
+        if (fileMenu) fileMenu->setEnabled(true);
+        if (projectOpenAction) projectOpenAction->setEnabled(true);
+        if (projectSaveAction) projectSaveAction->setEnabled(true);
+        if (projectSaveAsAction) projectSaveAsAction->setEnabled(true);
+        if (projectPngExportAction) projectPngExportAction->setEnabled(true);
         if (optimizationSettingsDialog) optimizationSettingsDialog->setEnabled(true);
         if (leastSquaresSettingsDialog) leastSquaresSettingsDialog->setEnabled(true);
         if (mergeSettingsDialog) mergeSettingsDialog->setEnabled(true);
@@ -7149,7 +8401,7 @@ void MainWindow::show_merge_settings()
         mergeSettingsDialog->setWindowModality(Qt::NonModal);
         trackDialogSize(mergeSettingsDialog,
                         QStringLiteral("imageMergeSettings"),
-                        QSize(430, 105));
+                        QSize(430, 190));
         mergeSettingsDialog->setMode(static_cast<int>(imageMergeSettings.mode));
         connect(mergeSettingsDialog, &QDialog::accepted,
                 this, &MainWindow::readMergeSettingsDialog);
