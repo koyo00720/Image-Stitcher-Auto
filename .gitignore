@@ -11,3 +11,5 @@
 
 # Linux AppImage 作成用のダウンロード済みバイナリ
 /tools/*.AppImage
+
+/Image_Stitcher_Auto.conf
