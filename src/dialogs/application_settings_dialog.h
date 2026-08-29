@@ -48,6 +48,7 @@ protected:
 private:
     void retranslateUi();
     void updateMinimumHeightForTabs();
+    void updateExplorerControls();
     void updateVulkanControls();
     void updateVulkanStatusText();
 
@@ -71,6 +72,8 @@ private:
     QLabel* vulkanStatusLabel = nullptr;
     QGroupBox* projectFileGroup = nullptr;
     QCheckBox* confirmProjectSaveCheck = nullptr;
+    QGroupBox* explorerGroup = nullptr;
+    QCheckBox* explorerContextMenuCheck = nullptr;
     QGroupBox* resetGroup = nullptr;
     QPushButton* resetAllButton = nullptr;
     QPushButton* resetApplicationButton = nullptr;

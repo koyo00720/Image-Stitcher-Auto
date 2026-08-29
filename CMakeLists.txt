@@ -6,6 +6,44 @@ if(APPLE)
     enable_language(OBJCXX)
 endif()
 
+if(WIN32)
+    set(IMAGE_STITCHER_CONTEXT_MENU_PUBLISHER
+        "CN=Image Stitcher Auto, OID.2.25.311729368913984317654407730594956997722=1"
+        CACHE STRING
+        "Publisher identity used by the Explorer sparse MSIX package")
+
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$")
+            set(IMAGE_STITCHER_PACKAGE_ARCHITECTURE arm64)
+        else()
+            set(IMAGE_STITCHER_PACKAGE_ARCHITECTURE x64)
+        endif()
+    else()
+        set(IMAGE_STITCHER_PACKAGE_ARCHITECTURE x86)
+    endif()
+
+    set(IMAGE_STITCHER_CONTEXT_MENU_PACKAGE_DIR
+        "${CMAKE_CURRENT_BINARY_DIR}/context-menu-package")
+    file(MAKE_DIRECTORY "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE_DIR}")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/context-menu/AppxManifest.xml.in"
+        "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE_DIR}/AppxManifest.xml"
+        @ONLY
+    )
+
+    find_program(IMAGE_STITCHER_MAKEAPPX_EXECUTABLE NAMES makeappx.exe)
+    if(NOT IMAGE_STITCHER_MAKEAPPX_EXECUTABLE)
+        file(GLOB _image_stitcher_makeappx_candidates
+            "C:/Program Files (x86)/Windows Kits/10/bin/*/${IMAGE_STITCHER_PACKAGE_ARCHITECTURE}/makeappx.exe")
+        list(SORT _image_stitcher_makeappx_candidates)
+        list(REVERSE _image_stitcher_makeappx_candidates)
+        if(_image_stitcher_makeappx_candidates)
+            list(GET _image_stitcher_makeappx_candidates 0
+                IMAGE_STITCHER_MAKEAPPX_EXECUTABLE)
+        endif()
+    endif()
+endif()
+
 set(DEFAULT_SETTINGS_FILE
     "${CMAKE_CURRENT_SOURCE_DIR}/Image_Stitcher_Auto.conf")
 configure_file(
@@ -146,7 +184,9 @@ if(WIN32)
     set(TARGET_PLATFORM windows)
     set(PLATFORM_SOURCES
         src/platform/platform_setup.h
+        src/platform/explorer_context_menu.h
         src/platform/windows/platform_setup.cpp
+        src/platform/windows/explorer_context_menu.cpp
         src/platform/windows/app.rc
         src/platform/windows/app.ico
     )
@@ -154,12 +194,16 @@ elseif(APPLE)
     set(TARGET_PLATFORM macos)
     set(PLATFORM_SOURCES
         src/platform/platform_setup.h
+        src/platform/explorer_context_menu.h
+        src/platform/explorer_context_menu_stub.cpp
         src/platform/macos/platform_setup.cpp
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(TARGET_PLATFORM linux)
     set(PLATFORM_SOURCES
         src/platform/platform_setup.h
+        src/platform/explorer_context_menu.h
+        src/platform/explorer_context_menu_stub.cpp
         src/platform/linux/platform_setup.cpp
     )
 else()
@@ -188,6 +232,60 @@ else()
     add_executable(Image_Stitcher_Auto
         ${PROJECT_SOURCES}
     )
+endif()
+
+if(WIN32)
+    add_library(ImageStitcherExplorerCommand SHARED
+        src/platform/windows/explorer_command.cpp
+        src/platform/windows/explorer_command.def
+    )
+    set_target_properties(ImageStitcherExplorerCommand PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME "ImageStitcherExplorerCommand"
+    )
+    target_compile_definitions(ImageStitcherExplorerCommand PRIVATE
+        UNICODE
+        _UNICODE
+    )
+    target_link_libraries(ImageStitcherExplorerCommand PRIVATE
+        advapi32
+        ole32
+        shell32
+    )
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_link_options(ImageStitcherExplorerCommand PRIVATE
+            -static
+            -static-libgcc
+            -static-libstdc++
+        )
+    endif()
+    add_dependencies(Image_Stitcher_Auto ImageStitcherExplorerCommand)
+
+    if(IMAGE_STITCHER_MAKEAPPX_EXECUTABLE)
+        set(IMAGE_STITCHER_CONTEXT_MENU_PACKAGE
+            "${CMAKE_CURRENT_BINARY_DIR}/ImageStitcherAuto.ContextMenu.msix")
+        add_custom_command(
+            OUTPUT "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE}"
+            COMMAND "${IMAGE_STITCHER_MAKEAPPX_EXECUTABLE}"
+                pack /o
+                /d "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE_DIR}"
+                /nv
+                /p "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE}"
+            DEPENDS
+                "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE_DIR}/AppxManifest.xml"
+            VERBATIM
+        )
+        add_custom_target(ImageStitcherContextMenuPackage ALL
+            DEPENDS "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE}"
+        )
+        add_dependencies(Image_Stitcher_Auto ImageStitcherContextMenuPackage)
+        message(STATUS
+            "Image Stitcher Auto Explorer package: ${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE}")
+    else()
+        message(WARNING
+            "makeappx.exe was not found. The Windows 11 Explorer context-menu "
+            "package will not be generated.")
+    endif()
 endif()
 
 set(TRANSLATION_SOURCES
@@ -221,11 +319,40 @@ add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
         "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/translations"
 )
 
+if(WIN32)
+    add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:ImageStitcherExplorerCommand>"
+            "$<TARGET_FILE_DIR:Image_Stitcher_Auto>"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/Assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/image-stitcher-auto.png"
+            "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/Assets/StoreLogo.png"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/image-stitcher-auto.png"
+            "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/Assets/Square150x150Logo.png"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/image-stitcher-auto.png"
+            "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/Assets/Square44x44Logo.png"
+    )
+    if(IMAGE_STITCHER_MAKEAPPX_EXECUTABLE)
+        add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE}"
+                "$<TARGET_FILE_DIR:Image_Stitcher_Auto>"
+        )
+    endif()
+endif()
+
 target_link_libraries(Image_Stitcher_Auto PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Concurrent
     ${OpenCV_LIBS}
 )
+if(WIN32)
+    target_link_libraries(Image_Stitcher_Auto PRIVATE advapi32 shell32)
+endif()
 
 # OpenCV's Windows packages do not participate in windeployqt deployment.
 # Copy the imported OpenCV runtime libraries beside the executable so that a
@@ -345,6 +472,28 @@ install(TARGETS Image_Stitcher_Auto
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+if(WIN32)
+    install(TARGETS ImageStitcherExplorerCommand
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+    if(IMAGE_STITCHER_MAKEAPPX_EXECUTABLE)
+        install(FILES "${IMAGE_STITCHER_CONTEXT_MENU_PACKAGE}"
+            DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+    endif()
+    install(FILES resources/image-stitcher-auto.png
+        DESTINATION ${CMAKE_INSTALL_BINDIR}/Assets
+        RENAME StoreLogo.png
+    )
+    install(FILES resources/image-stitcher-auto.png
+        DESTINATION ${CMAKE_INSTALL_BINDIR}/Assets
+        RENAME Square150x150Logo.png
+    )
+    install(FILES resources/image-stitcher-auto.png
+        DESTINATION ${CMAKE_INSTALL_BINDIR}/Assets
+        RENAME Square44x44Logo.png
+    )
+endif()
 if(APPLE)
     set(IMAGE_STITCHER_RUNTIME_DATA_DIR
         "Image_Stitcher_Auto.app/Contents/MacOS")

@@ -79,6 +79,10 @@ struct ProjectFileDefaultSettings {
     bool confirmSaveOnClose = true;
 };
 
+struct ExplorerDefaultSettings {
+    bool contextMenuEnabled = false;
+};
+
 struct ApplicationDefaultSettings {
     ApplicationTheme theme = ApplicationTheme::System;
     ApplicationLanguage language = ApplicationLanguage::System;
@@ -91,6 +95,7 @@ struct ApplicationDefaultSettings {
     LeastSquaresDefaultSettings leastSquares;
     ImageMergeDefaultSettings imageMerge;
     ProjectFileDefaultSettings projectFile;
+    ExplorerDefaultSettings explorer;
 };
 
 class AppSettings
@@ -114,6 +119,9 @@ public:
 
     static bool confirmProjectSaveOnClose();
     static void setConfirmProjectSaveOnClose(bool enabled);
+
+    static bool explorerContextMenuEnabled();
+    static void setExplorerContextMenuEnabled(bool enabled);
 
     static QString canvasBackground();
     static void setCanvasBackground(const QString& setting);

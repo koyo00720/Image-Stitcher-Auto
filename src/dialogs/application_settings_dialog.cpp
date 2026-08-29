@@ -1,6 +1,7 @@
 #include "application_settings_dialog.h"
 
 #include "app_settings.h"
+#include "explorer_context_menu.h"
 #include "metal_ssim.h"
 
 #include <QAbstractButton>
@@ -18,6 +19,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
@@ -255,6 +257,13 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     confirmProjectSaveCheck = new QCheckBox(projectFileGroup);
     projectFileLayout->addWidget(confirmProjectSaveCheck);
     generalLayout->addWidget(projectFileGroup);
+
+    explorerGroup = new QGroupBox(generalPage);
+    auto* explorerLayout = new QVBoxLayout(explorerGroup);
+    explorerLayout->setContentsMargins(14, 12, 14, 12);
+    explorerContextMenuCheck = new QCheckBox(explorerGroup);
+    explorerLayout->addWidget(explorerContextMenuCheck);
+    generalLayout->addWidget(explorerGroup);
     generalLayout->addStretch(1);
     addScrollablePage(generalPage);
 
@@ -364,6 +373,33 @@ ApplicationSettingsDialog::ApplicationSettingsDialog(QWidget* parent)
     connect(confirmProjectSaveCheck, &QCheckBox::toggled, this, [](bool enabled) {
         AppSettings::setConfirmProjectSaveOnClose(enabled);
     });
+    connect(explorerContextMenuCheck, &QCheckBox::toggled,
+            this, [this](bool enabled) {
+        explorerContextMenuCheck->setEnabled(false);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const image_stitcher::platform::ExplorerContextMenuResult result =
+            image_stitcher::platform::setExplorerContextMenuEnabled(enabled);
+        QApplication::restoreOverrideCursor();
+
+        if (result.success) {
+            AppSettings::setExplorerContextMenuEnabled(enabled);
+        } else {
+            const QSignalBlocker blocker(explorerContextMenuCheck);
+            explorerContextMenuCheck->setChecked(!enabled);
+            auto* message = new QMessageBox(
+                QMessageBox::Warning,
+                tr("エクスプローラー"),
+                tr("コンテキストメニューの設定を変更できませんでした。\n%1")
+                    .arg(result.errorMessage),
+                QMessageBox::Ok,
+                this);
+            message->setAttribute(Qt::WA_DeleteOnClose);
+            message->setModal(false);
+            message->setWindowModality(Qt::NonModal);
+            message->show();
+        }
+        updateExplorerControls();
+    });
     connect(gpuCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int index) {
         if (index >= 0) {
@@ -439,6 +475,10 @@ void ApplicationSettingsDialog::retranslateUi()
     confirmProjectSaveCheck->setText(
         tr("ウインドウを閉じる時にプロジェクトファイル保存を確認する"));
 
+    explorerGroup->setTitle(tr("エクスプローラー"));
+    explorerContextMenuCheck->setText(
+        tr("コンテキストメニューに「Open in IS Auto」を追加する"));
+
     resetGroup->setTitle(tr("デフォルト設定にリセット"));
     resetAllButton->setText(tr("全て"));
     resetApplicationButton->setText(tr("設定ダイアログ"));
@@ -465,6 +505,7 @@ void ApplicationSettingsDialog::retranslateUi()
     informationOpenCvCaption->setText(tr("OpenCV:"));
     informationVulkanCaption->setText(metalBuild ? tr("GPU計算:") : tr("Vulkan:"));
     closeButton->setText(tr("閉じる"));
+    updateExplorerControls();
 }
 
 void ApplicationSettingsDialog::reloadFromSettings()
@@ -479,6 +520,7 @@ void ApplicationSettingsDialog::reloadFromSettings()
     const QSignalBlocker limitBlocker(ignoreVramLimitCheck);
     const QSignalBlocker gpuBlocker(gpuCombo);
     const QSignalBlocker confirmProjectBlocker(confirmProjectSaveCheck);
+    const QSignalBlocker explorerBlocker(explorerContextMenuCheck);
 
     const ApplicationTheme currentTheme = AppSettings::theme();
     if (QAbstractButton* currentThemeButton =
@@ -496,6 +538,8 @@ void ApplicationSettingsDialog::reloadFromSettings()
     useVulkanCheck->setChecked(options.enabled);
     ignoreVramLimitCheck->setChecked(options.ignoreVramLimit);
     confirmProjectSaveCheck->setChecked(AppSettings::confirmProjectSaveOnClose());
+    explorerContextMenuCheck->setChecked(
+        AppSettings::explorerContextMenuEnabled());
     int gpuIndex = gpuCombo->findData(options.deviceKey);
     if (gpuIndex < 0 && gpuCombo->count() > 0) {
         gpuIndex = 0;
@@ -506,8 +550,19 @@ void ApplicationSettingsDialog::reloadFromSettings()
 
     applyApplicationTheme(currentTheme);
     applyApplicationLanguage(currentLanguage);
+    updateExplorerControls();
     updateVulkanControls();
     updateVulkanStatusText();
+}
+
+void ApplicationSettingsDialog::updateExplorerControls()
+{
+    const bool supported =
+        image_stitcher::platform::explorerContextMenuSupported();
+    explorerContextMenuCheck->setEnabled(supported);
+    explorerContextMenuCheck->setToolTip(
+        supported ? QString()
+                  : tr("Windows 11以降でのみ利用できます。"));
 }
 
 void ApplicationSettingsDialog::setVulkanDetectionInProgress()

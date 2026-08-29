@@ -12,6 +12,7 @@
 #include "canvas_history_graph_widget.h"
 #include "metal_ssim.h"
 #include "unsupported_files_dialog.h"
+#include "explorer_context_menu.h"
 
 #include <QBuffer>
 #include <QCloseEvent>
@@ -8600,6 +8601,16 @@ void MainWindow::handleSettingsReset(SettingsResetCategory category)
     suppressSettingsPersistence = true;
 
     if (resetAll || category == SettingsResetCategory::ApplicationDialog) {
+        const image_stitcher::platform::ExplorerContextMenuResult explorerResult =
+            image_stitcher::platform::setExplorerContextMenuEnabled(
+                AppSettings::explorerContextMenuEnabled());
+        if (!explorerResult.success) {
+            showNonModalMessage(
+                QMessageBox::Warning,
+                tr("エクスプローラー"),
+                tr("コンテキストメニューの設定を変更できませんでした。\n%1")
+                    .arg(explorerResult.errorMessage));
+        }
         if (applicationSettingsDialog) {
             applicationSettingsDialog->reloadFromSettings();
         } else {

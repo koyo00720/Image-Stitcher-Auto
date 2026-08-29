@@ -105,6 +105,28 @@
         <translation>Ask to save the project file when closing the window</translation>
     </message>
     <message>
+        <location filename="../src/dialogs/application_settings_dialog.cpp"/>
+        <source>エクスプローラー</source>
+        <translation>File Explorer</translation>
+    </message>
+    <message>
+        <location filename="../src/dialogs/application_settings_dialog.cpp"/>
+        <source>コンテキストメニューに「Open in IS Auto」を追加する</source>
+        <translation>Add “Open in IS Auto” to the context menu</translation>
+    </message>
+    <message>
+        <location filename="../src/dialogs/application_settings_dialog.cpp"/>
+        <source>コンテキストメニューの設定を変更できませんでした。
+%1</source>
+        <translation>Could not change the context-menu setting.
+%1</translation>
+    </message>
+    <message>
+        <location filename="../src/dialogs/application_settings_dialog.cpp"/>
+        <source>Windows 11以降でのみ利用できます。</source>
+        <translation>Available only on Windows 11 or later.</translation>
+    </message>
+    <message>
         <location filename="../src/dialogs/application_settings_dialog.cpp" line="402"/>
         <source>デフォルト設定にリセット</source>
         <translation>Reset to Defaults</translation>
@@ -248,6 +270,37 @@
         <location filename="../src/dialogs/application_settings_dialog.cpp" line="540"/>
         <source>%1台のVulkan GPUを検出しました。VRAM上限は選択GPUの70%です。</source>
         <translation>%1 Vulkan GPU(s) detected. The VRAM limit is 70% of the selected GPU.</translation>
+    </message>
+</context>
+<context>
+    <name>ExplorerContextMenu</name>
+    <message>
+        <location filename="../src/platform/explorer_context_menu_stub.cpp"/>
+        <location filename="../src/platform/windows/explorer_context_menu.cpp"/>
+        <source>この機能はWindows 11以降でのみ利用できます。</source>
+        <translation>This feature is available only on Windows 11 or later.</translation>
+    </message>
+    <message>
+        <location filename="../src/platform/windows/explorer_context_menu.cpp"/>
+        <source>必要なExplorer連携ファイルが見つかりません: %1</source>
+        <translation>A required File Explorer integration file was not found: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/platform/windows/explorer_context_menu.cpp"/>
+        <source>Windowsへの登録処理がタイムアウトしました。</source>
+        <translation>Registration with Windows timed out.</translation>
+    </message>
+    <message>
+        <location filename="../src/platform/windows/explorer_context_menu.cpp"/>
+        <source>詳細なエラー情報はありません。</source>
+        <translation>No detailed error information is available.</translation>
+    </message>
+    <message>
+        <location filename="../src/platform/windows/explorer_context_menu.cpp"/>
+        <source>Windowsへの登録に失敗しました（終了コード %1）。
+%2</source>
+        <translation>Registration with Windows failed (exit code %1).
+%2</translation>
     </message>
 </context>
 <context>
@@ -421,6 +474,18 @@
 </context>
 <context>
     <name>MainWindow</name>
+    <message>
+        <location filename="../src/app/mainwindow.cpp"/>
+        <source>エクスプローラー</source>
+        <translation>File Explorer</translation>
+    </message>
+    <message>
+        <location filename="../src/app/mainwindow.cpp"/>
+        <source>コンテキストメニューの設定を変更できませんでした。
+%1</source>
+        <translation>Could not change the context-menu setting.
+%1</translation>
+    </message>
     <message>
         <location filename="../src/app/mainwindow.ui" line="32"/>
         <source>Image Stitcher Auto</source>
@@ -1718,6 +1783,11 @@ Path: %1</translation>
         <location filename="../src/app/main.cpp" line="30"/>
         <source>入力ファイルのパスを指定。区切り文字は「;」</source>
         <translation>Specify input file paths separated by semicolons (;).</translation>
+    </message>
+    <message>
+        <location filename="../src/app/main.cpp"/>
+        <source>読み込む画像ファイル（複数指定可能）</source>
+        <translation>Image files to load (multiple files are supported)</translation>
     </message>
     <message>
         <location filename="../src/app/main.cpp" line="43"/>

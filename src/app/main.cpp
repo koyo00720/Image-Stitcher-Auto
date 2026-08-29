@@ -30,6 +30,11 @@ int main(int argc, char *argv[])
         QCoreApplication::translate("main", "入力ファイルのパスを指定。区切り文字は「;」"),
         "files");
     parser.addOption(inputOption);
+    parser.addPositionalArgument(
+        QStringLiteral("images"),
+        QCoreApplication::translate(
+            "main", "読み込む画像ファイル（複数指定可能）"),
+        QStringLiteral("[images...]"));
 
     /*
     QCommandLineOption autoOption("auto", "自動で画像の配列を計算（未実装）");
@@ -194,6 +199,18 @@ int main(int argc, char *argv[])
 
     parser.process(a);
 
+    QStringList initialInputFiles;
+    if (parser.isSet(inputOption)) {
+        const QString raw = parser.value(inputOption);
+        initialInputFiles.append(raw.split(';', Qt::SkipEmptyParts));
+    }
+    initialInputFiles.append(parser.positionalArguments());
+    for (QString& file : initialInputFiles) {
+        file = file.trimmed();
+    }
+    initialInputFiles.removeAll(QString());
+    const bool hasInitialInputFiles = !initialInputFiles.isEmpty();
+
     QSplashScreen splash(QPixmap(":/splash.png"));
     splash.show();
     a.processEvents();
@@ -204,15 +221,10 @@ int main(int argc, char *argv[])
 
     w.show();
 
-    QTimer::singleShot(100, &w, [&w, &parser, &splash, inputOption]() {
-        if (parser.isSet(inputOption)) {
-            QString raw = parser.value(inputOption);
-            QStringList files = raw.split(';', Qt::SkipEmptyParts);
-            for (QString &f : files) {
-                f = f.trimmed();
-            }
+    QTimer::singleShot(100, &w, [&w, &splash, initialInputFiles]() {
+        if (!initialInputFiles.isEmpty()) {
             w.File_input_UI();
-            w.File_input_check(files);
+            w.File_input_check(initialInputFiles);
         } else {
             w.File_input_dummy();
         }
@@ -311,7 +323,7 @@ int main(int argc, char *argv[])
     }
     ok = false;
     int ca = parser.value(calcOption).toInt(&ok);
-    if (!ok || ca < 0 || ca > 2 || !parser.isSet(inputOption)) {
+    if (!ok || ca < 0 || ca > 2 || !hasInitialInputFiles) {
         ca = 0;
     }
     bool mi = parser.isSet(miOption);

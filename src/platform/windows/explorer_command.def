@@ -1,0 +1,4 @@
+LIBRARY "ImageStitcherExplorerCommand"
+EXPORTS
+    DllCanUnloadNow
+    DllGetClassObject

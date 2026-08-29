@@ -30,6 +30,7 @@ constexpr auto kVulkanEnabledKey = "vulkan/enabled";
 constexpr auto kVulkanIgnoreLimitKey = "vulkan/ignoreVramLimit";
 constexpr auto kVulkanDeviceKey = "vulkan/deviceKey";
 constexpr auto kConfirmProjectSaveOnCloseKey = "projectFile/confirmSaveOnClose";
+constexpr auto kExplorerContextMenuEnabledKey = "explorer/contextMenuEnabled";
 constexpr auto kCanvasBackgroundKey = "canvas/background";
 constexpr auto kDefaultsFileName = "Image_Stitcher_Auto.conf";
 constexpr auto kEnglishTranslationFileName = "Image_Stitcher_Auto_en.qm";
@@ -37,6 +38,7 @@ constexpr auto kEnglishTranslationFileName = "Image_Stitcher_Auto_en.qm";
 constexpr auto kStateApplicationSection = "stateApplication";
 constexpr auto kStateVulkanSection = "stateVulkan";
 constexpr auto kStateProjectFileSection = "stateProjectFile";
+constexpr auto kStateExplorerSection = "stateExplorer";
 constexpr auto kStateCanvasSection = "stateCanvas";
 constexpr auto kStateAlignmentSection = "stateAlignment";
 constexpr auto kStateArrangementSection = "stateArrangement";
@@ -390,6 +392,10 @@ ApplicationDefaultSettings loadDefaultSettings(const QString& filePath)
         readBool(settings, "projectFile/confirmSaveOnClose",
                  defaults.projectFile.confirmSaveOnClose);
 
+    defaults.explorer.contextMenuEnabled =
+        readBool(settings, "explorer/contextMenuEnabled",
+                 defaults.explorer.contextMenuEnabled);
+
     defaults.fileInput.sortMode =
         readChoice(settings,
                    "fileInput/sortMode",
@@ -740,6 +746,23 @@ void AppSettings::setConfirmProjectSaveOnClose(bool enabled)
     setPersistedValue(kConfirmProjectSaveOnCloseKey,
                       kStateProjectFileSection,
                       "confirmSaveOnClose", enabled,
+                      enabled ? QStringLiteral("true")
+                              : QStringLiteral("false"));
+}
+
+bool AppSettings::explorerContextMenuEnabled()
+{
+    return persistedValue(kExplorerContextMenuEnabledKey,
+                          kStateExplorerSection,
+                          "contextMenuEnabled",
+                          defaults().explorer.contextMenuEnabled).toBool();
+}
+
+void AppSettings::setExplorerContextMenuEnabled(bool enabled)
+{
+    setPersistedValue(kExplorerContextMenuEnabledKey,
+                      kStateExplorerSection,
+                      "contextMenuEnabled", enabled,
                       enabled ? QStringLiteral("true")
                               : QStringLiteral("false"));
 }
@@ -1131,6 +1154,8 @@ void AppSettings::resetApplicationDialogSettings()
     resetPersistedValue(kVulkanDeviceKey, kStateVulkanSection, "deviceKey");
     resetPersistedValue(kConfirmProjectSaveOnCloseKey,
                         kStateProjectFileSection, "confirmSaveOnClose");
+    resetPersistedValue(kExplorerContextMenuEnabledKey,
+                        kStateExplorerSection, "contextMenuEnabled");
 }
 
 void AppSettings::resetCanvasSettings()

@@ -11,10 +11,11 @@
 INI形式で定義します。CMake構成時にビルド先へコピーされ、インストール時は
 実行ファイルと同じディレクトリへ配置されます。
 
-対象は、テーマ、言語、Vulkan、入力ファイルの並べ替え、重なりと配列、キャンパス、
-TRW-S-PAMI、最小二乗法、画像結合です。値の範囲と選択肢は設定ファイル内の
-コメントを参照してください。不正な値はGUIの範囲内へ補正され、解釈できない値や
-ファイルが存在しない場合は、プログラム内の従来値へフォールバックします。
+対象は、テーマ、言語、Vulkan、プロジェクトファイル、Windows Explorer、入力
+ファイルの並べ替え、重なりと配列、キャンパス、TRW-S-PAMI、最小二乗法、画像結合
+です。値の範囲と選択肢は設定ファイル内のコメントを参照してください。不正な値は
+GUIの範囲内へ補正され、解釈できない値やファイルが存在しない場合は、プログラム内の
+従来値へフォールバックします。
 
 設定の優先順位は次のとおりです。
 
@@ -85,6 +86,7 @@ CMake構成時に対象OSを判定し、`src/platform/windows`、`src/platform/m
 - OpenCV（core、imgcodecs、imgproc、highgui）
 - CMake 3.16以降
 - Vulkan SDK、またはVulkanのヘッダーとローダー（任意。未検出時はCPU計算のみ）
+- Windows SDK（Windows 11の新しいExplorerコンテキストメニューをビルドする場合）
 
 QtとOpenCVを標準外の場所へインストールした場合は、各パッケージの場所を指定します。
 
@@ -111,6 +113,13 @@ Metalが利用可能な場合はMetalを優先し、必要メモリがGPUの推�
 
 Windowsの既存開発環境では、`C:/OpenCV/opencv_install_qtmingw/x64/mingw/lib`
 が存在する場合に限り、OpenCVの検索候補として自動的に使用します。
+
+Windows SDKの`makeappx.exe`が見つかる場合は、本体と同時に
+`ImageStitcherExplorerCommand.dll`と`ImageStitcherAuto.ContextMenu.msix`を生成します。
+設定画面でExplorer連携を初めて有効にすると、sparse MSIXを現在の実行フォルダへ関連
+付けます。開発ビルドのMSIXはローカルテスト用の未署名形式です。配布時は
+`IMAGE_STITCHER_CONTEXT_MENU_PUBLISHER`を署名証明書のSubjectへ変更し、生成された
+MSIXへ信頼済み証明書で署名してください。
 
 ## Third-party libraries
 This project uses:
