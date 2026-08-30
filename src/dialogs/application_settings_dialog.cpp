@@ -557,12 +557,9 @@ void ApplicationSettingsDialog::reloadFromSettings()
 
 void ApplicationSettingsDialog::updateExplorerControls()
 {
-    const bool supported =
-        image_stitcher::platform::explorerContextMenuSupported();
-    explorerContextMenuCheck->setEnabled(supported);
+    explorerContextMenuCheck->setEnabled(false);
     explorerContextMenuCheck->setToolTip(
-        supported ? QString()
-                  : tr("Windows 11以降でのみ利用できます。"));
+        tr("現在のビルドでは利用できません。"));
 }
 
 void ApplicationSettingsDialog::setVulkanDetectionInProgress()

@@ -123,8 +123,8 @@
     </message>
     <message>
         <location filename="../src/dialogs/application_settings_dialog.cpp"/>
-        <source>Windows 11以降でのみ利用できます。</source>
-        <translation>Available only on Windows 11 or later.</translation>
+        <source>現在のビルドでは利用できません。</source>
+        <translation>Not available in the current build.</translation>
     </message>
     <message>
         <location filename="../src/dialogs/application_settings_dialog.cpp" line="402"/>
