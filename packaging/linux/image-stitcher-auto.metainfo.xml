@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.koyo00720.ImageStitcherAuto</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Image Stitcher Auto</name>
+  <summary>Stitch multiple microscope images</summary>
+  <developer id="io.github.koyo00720">
+    <name>koyo00720</name>
+  </developer>
+  <description>
+    <p>
+      Image Stitcher Auto combines overlapping images into one image, with
+      microscope images as its primary use case. It supports automatic
+      alignment and optional Vulkan acceleration.
+    </p>
+  </description>
+  <launchable type="desktop-id">image-stitcher-auto.desktop</launchable>
+  <provides>
+    <binary>Image_Stitcher_Auto</binary>
+  </provides>
+  <url type="homepage">https://github.com/koyo00720/Image-Stitcher-Auto</url>
+  <content_rating type="oars-1.1"/>
+</component>

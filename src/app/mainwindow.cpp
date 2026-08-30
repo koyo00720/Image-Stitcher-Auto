@@ -13,6 +13,7 @@
 #include "metal_ssim.h"
 #include "unsupported_files_dialog.h"
 #include "explorer_context_menu.h"
+#include "platform_setup.h"
 
 #include <QBuffer>
 #include <QCloseEvent>
@@ -1130,6 +1131,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 {
     ui->setupUi(this);
 
+    ui->leftScrollArea->setMinimumWidth(
+        image_stitcher::platform::controlPanelMinimumWidth(
+            ui->leftScrollArea->minimumWidth()));
+
     settingsPersistenceTimer = new QTimer(this);
     settingsPersistenceTimer->setSingleShot(true);
     settingsPersistenceTimer->setInterval(180);
@@ -1366,6 +1371,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     zoomLabel = new QLabel(this);
     zoomLabel->setText("100%");
     statusBar()->addPermanentWidget(zoomLabel);
+    updateStatusBarTheme();
 
     // 透明度制御
     ui->sliderOpacity1->setRange(0, 100);
@@ -1705,7 +1711,32 @@ void MainWindow::changeEvent(QEvent* event)
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
         retranslateDynamicUi();
+    } else if (event->type() == QEvent::ApplicationPaletteChange
+               || event->type() == QEvent::PaletteChange) {
+        updateStatusBarTheme();
     }
+}
+
+void MainWindow::updateStatusBarTheme()
+{
+    if (!statusMessageLabel || !zoomLabel) {
+        return;
+    }
+
+    const QPalette sourcePalette = palette();
+    const auto updateLabelPalette = [&sourcePalette](QLabel* label) {
+        QPalette labelPalette = label->palette();
+        for (const QPalette::ColorGroup group : {
+                 QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+            labelPalette.setBrush(
+                group, QPalette::WindowText,
+                sourcePalette.brush(group, QPalette::WindowText));
+        }
+        label->setForegroundRole(QPalette::WindowText);
+        label->setPalette(labelPalette);
+    };
+    updateLabelPalette(statusMessageLabel);
+    updateLabelPalette(zoomLabel);
 }
 
 int MainWindow::maximumCanvasHistorySequence() const
@@ -1767,7 +1798,9 @@ void MainWindow::showProjectOpenDialog()
     dialog->setAcceptMode(QFileDialog::AcceptOpen);
     dialog->setFileMode(QFileDialog::ExistingFile);
     dialog->setDefaultSuffix(QStringLiteral("isauto"));
-    dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog->setOption(
+        QFileDialog::DontUseNativeDialog,
+        !image_stitcher::platform::useNativeFileDialogs());
     dialog->setModal(false);
     dialog->setWindowModality(Qt::NonModal);
     dialog->resize(AppSettings::windowSize(QStringLiteral("projectOpen"),
@@ -1799,7 +1832,9 @@ void MainWindow::saveProjectAs(std::function<void(bool)> completion)
     dialog->setAcceptMode(QFileDialog::AcceptSave);
     dialog->setFileMode(QFileDialog::AnyFile);
     dialog->setDefaultSuffix(QStringLiteral("isauto"));
-    dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog->setOption(
+        QFileDialog::DontUseNativeDialog,
+        !image_stitcher::platform::useNativeFileDialogs());
     dialog->setOption(QFileDialog::DontConfirmOverwrite, true);
     dialog->setModal(false);
     dialog->setWindowModality(Qt::NonModal);
@@ -5447,7 +5482,9 @@ void MainWindow::png_export() {
         dialog->setAcceptMode(QFileDialog::AcceptSave);
         dialog->setFileMode(QFileDialog::AnyFile);
         dialog->setDefaultSuffix(QStringLiteral("png"));
-        dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+        dialog->setOption(
+            QFileDialog::DontUseNativeDialog,
+            !image_stitcher::platform::useNativeFileDialogs());
         dialog->setOption(QFileDialog::DontConfirmOverwrite, true);
         dialog->setModal(false);
         dialog->setWindowModality(Qt::NonModal);

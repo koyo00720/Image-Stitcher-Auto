@@ -344,6 +344,7 @@ private:
     void startDelayedVulkanDetection();
     void applyCanvasBackgroundSetting(const QString& setting);
     void retranslateDynamicUi();
+    void updateStatusBarTheme();
     void showCalculationProgressDialog(const QString& title,
                                        const QString& computePath,
                                        int maximum = 0);

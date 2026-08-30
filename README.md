@@ -46,16 +46,100 @@ Image_Stitcher_Auto.exe -h
 
 Linuxでは実行ファイル名を `Image_Stitcher_Auto`、パスをLinux形式に読み替えてください。
 
-## Linux向け
-- インストール (.deb)  
+## Linux向けパッケージ
+
+以下はUbuntu 24.04系のx86_64環境でQt 6を使用する例です。`.deb`はビルド環境の
+共有ライブラリを依存関係として記録し、AppImageはQtとOpenCVの実行時ライブラリを
+同梱します。互換性を広げる場合は、対応対象の中で最も古いLinux環境上でビルドして
+ください。
+
+### ビルド環境
+
+必要なパッケージをインストールします。
+
+```sh
+sudo apt update
+sudo apt install \
+  build-essential cmake ninja-build curl dpkg-dev \
+  qt6-base-dev qt6-gtk-platformtheme qt6-tools-dev qt6-l10n-tools \
+  libopencv-dev libvulkan-dev
+```
+
+`qt6-gtk-platformtheme`は、Linuxのファイル選択でデスクトップ環境のネイティブ
+ダイアログを使用するために必要です。AppImageにはビルドスクリプトが
+対応するQtプラットフォームテーマを同梱します。
+
+Vulkan対応が不要な場合は`libvulkan-dev`を省略でき、後述のビルドコマンドへ
+`-DIMAGE_STITCHER_ENABLE_VULKAN=OFF`を追加します。
+
+AppImage作成用の`linuxdeploy`とQtプラグインを`tools`へ配置します。
+
+```sh
+mkdir -p tools
+curl --fail --location \
+  https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
+  --output tools/linuxdeploy-x86_64.AppImage
+curl --fail --location \
+  https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage \
+  --output tools/linuxdeploy-plugin-qt-x86_64.AppImage
+```
+
+### `.deb`とAppImageの作成
+
+リポジトリのルートで次を実行します。
+
+```sh
+bash packaging/linux/build-packages.sh
+```
+
+スクリプトはRelease構成をビルドし、Linuxネイティブな一時ディレクトリで`.deb`を
+パッケージングした後、AppDirへQt/OpenCVを収集してAppImageを作成します。成果物は
+次の場所へ出力されます。
+
+```text
+dist/image-stitcher-auto_<version>_amd64.deb
+dist/Image_Stitcher_Auto-<version>-x86_64.AppImage
+```
+
+CMakeオプションはスクリプトの引数として渡せます。例えばVulkan対応を無効化する
+場合は次のようにします。
+
+```sh
+bash packaging/linux/build-packages.sh \
+  -DIMAGE_STITCHER_ENABLE_VULKAN=OFF
+```
+
+ビルド先・出力先・`linuxdeploy`の場所を変更する場合は、それぞれ`BUILD_DIR`、
+`DIST_DIR`、`LINUXDEPLOY`、`LINUXDEPLOY_PLUGIN_QT`環境変数で指定できます。Qtを
+標準外の場所へ入れている場合は、使用する`qmake`を`QMAKE`で指定できます。
+
+### インストールと実行
+
+`.deb`をインストールする場合:
+
+```sh
 sudo apt install ./dist/image-stitcher-auto_*.deb
-- インストール後に実行  
-ターミナルにて Image_Stitcher_Auto または /usr/bin/Image_Stitcher_Auto
-- アンインストール (.deb)  
+Image_Stitcher_Auto
+```
+
+アンインストールする場合:
+
+```sh
 sudo apt remove image-stitcher-auto
-- インストールせずにそのまま実行 (.AppImage)  
-chmod +x Image_Stitcher_Auto*.AppImage  
-./Image_Stitcher_Auto*.AppImage
+```
+
+AppImageをインストールせずに実行する場合:
+
+```sh
+chmod +x dist/Image_Stitcher_Auto-*.AppImage
+./dist/Image_Stitcher_Auto-*.AppImage
+```
+
+FUSEを利用できないコンテナなどでは、展開実行モードを使用できます。
+
+```sh
+APPIMAGE_EXTRACT_AND_RUN=1 ./dist/Image_Stitcher_Auto-*.AppImage
+```
 
 ## ソース構成
 

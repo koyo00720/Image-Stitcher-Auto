@@ -1,5 +1,6 @@
 # CMake / Qt のビルド生成物・配布パッケージ
 /build/
+/dist/
 
 # Qt Creator のユーザー固有設定
 /.qtcreator/

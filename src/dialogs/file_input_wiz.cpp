@@ -2,6 +2,7 @@
 #include "ui_file_input_wiz.h"
 #include "unsupported_files_dialog.h"
 #include "app_settings.h"
+#include "platform_setup.h"
 #include "droparea_wiz.h"
 #include "filetablewidget.h"
 
@@ -142,7 +143,9 @@ void FileInputDialog::onBrowseClicked()
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setAcceptMode(QFileDialog::AcceptOpen);
     dialog->setFileMode(QFileDialog::ExistingFiles);
-    dialog->setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog->setOption(
+        QFileDialog::DontUseNativeDialog,
+        !image_stitcher::platform::useNativeFileDialogs());
     dialog->setModal(false);
     dialog->setWindowModality(Qt::NonModal);
     dialog->resize(AppSettings::windowSize(QStringLiteral("imageFilePicker"),

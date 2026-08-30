@@ -530,28 +530,41 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 
     install(
-        FILES resources/image-stitcher-auto.png
+        FILES packaging/linux/image-stitcher-auto.png
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
     )
 
     install(
+        FILES packaging/linux/image-stitcher-auto.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
+    )
+
+    install(
         FILES LICENSE
-        DESTINATION ${CMAKE_INSTALL_DOCDIR}
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/image-stitcher-auto
     )
 
     set(CPACK_GENERATOR "DEB")
     set(CPACK_PACKAGE_NAME "image-stitcher-auto")
-    set(CPACK_PACKAGE_VENDOR "Your name or organization")
-    set(CPACK_PACKAGE_CONTACT "Your Name <your-email@example.com>")
+    set(CPACK_PACKAGE_VENDOR "koyo00720")
+    set(CPACK_PACKAGE_CONTACT "koyo00720 <koyo0.0720@gmail.com>")
+    set(CPACK_PACKAGE_HOMEPAGE_URL
+        "https://github.com/koyo00720/Image-Stitcher-Auto")
+    set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-        "Automatic image stitching application")
+        "Qt application for stitching multiple microscope images")
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
     set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+    set(CPACK_STRIP_FILES TRUE)
 
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER
-        "Your Name <your-email@example.com>")
+        "koyo00720 <koyo0.0720@gmail.com>")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE
+        "https://github.com/koyo00720/Image-Stitcher-Auto")
     set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-gtk-platformtheme")
 
     # dpkg-shlibdepsでQt/OpenCV等の依存関係を自動生成
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
