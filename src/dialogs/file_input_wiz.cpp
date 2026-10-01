@@ -2,7 +2,6 @@
 #include "ui_file_input_wiz.h"
 #include "unsupported_files_dialog.h"
 #include "app_settings.h"
-#include "platform_setup.h"
 #include "droparea_wiz.h"
 #include "filetablewidget.h"
 
@@ -137,26 +136,12 @@ void FileInputDialog::retranslateUi()
 
 void FileInputDialog::onBrowseClicked()
 {
-    auto* dialog = new QFileDialog(
+    const QStringList files = QFileDialog::getOpenFileNames(
         this, tr("画像ファイルを選択"), QString(),
         tr("画像ファイル (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;すべてのファイル (*)"));
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setAcceptMode(QFileDialog::AcceptOpen);
-    dialog->setFileMode(QFileDialog::ExistingFiles);
-    dialog->setOption(
-        QFileDialog::DontUseNativeDialog,
-        !image_stitcher::platform::useNativeFileDialogs());
-    dialog->setModal(false);
-    dialog->setWindowModality(Qt::NonModal);
-    dialog->resize(AppSettings::windowSize(QStringLiteral("imageFilePicker"),
-                                           QSize(900, 600)));
-    connect(dialog, &QDialog::finished, dialog, [dialog]() {
-        AppSettings::setWindowSize(QStringLiteral("imageFilePicker"),
-                                   dialog->size());
-    });
-    connect(dialog, &QFileDialog::filesSelected,
-            this, &FileInputDialog::onFilesReceived);
-    dialog->show();
+    if (!files.isEmpty()) {
+        onFilesReceived(files);
+    }
 }
 
 void FileInputDialog::onFilesDropped(const QStringList &files)

@@ -1,6 +1,23 @@
 # CMake / Qt のビルド生成物・配布パッケージ
 /build/
+/build-*/
+/cmake-build-*/
 /dist/
+
+# ソース内でCMakeを実行した場合の生成物
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/install_manifest.txt
+/build.ninja
+/.ninja_deps
+/.ninja_log
+/.qt/
+/.qtc/
+/*_autogen/
+*.o
+*.obj
+*.qm
 
 # Qt Creator のユーザー固有設定
 /.qtcreator/
@@ -12,3 +29,11 @@
 
 # Linux AppImage 作成用のダウンロード済みバイナリ
 /tools/*.AppImage
+
+# 実アプリには同梱しない画像編集用の原稿（ローカルには保持）
+/resources/splash.xcf
+
+# OSが自動生成するファイル
+.DS_Store
+Thumbs.db
+Desktop.ini

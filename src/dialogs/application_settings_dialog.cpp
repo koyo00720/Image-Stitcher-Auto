@@ -601,7 +601,8 @@ void ApplicationSettingsDialog::setVulkanScanResult(const VulkanDeviceScanResult
 
 void ApplicationSettingsDialog::updateVulkanControls()
 {
-    const bool metalAvailable = MetalSsimEngine::isBuilt()
+    const bool metalBuild = MetalSsimEngine::isBuilt();
+    const bool metalAvailable = !detectionInProgress && metalBuild
                                 && MetalSsimEngine::isAvailable();
     const bool vulkanAvailable = !detectionInProgress
                                  && !scanResult.devices.isEmpty();
@@ -609,21 +610,23 @@ void ApplicationSettingsDialog::updateVulkanControls()
     useVulkanCheck->setEnabled(available);
     const bool detailsEnabled = available && useVulkanCheck->isChecked();
     ignoreVramLimitCheck->setEnabled(detailsEnabled);
-    gpuCaptionLabel->setVisible(!metalAvailable);
-    gpuCombo->setVisible(!metalAvailable);
-    gpuCombo->setEnabled(detailsEnabled && !metalAvailable);
+    gpuCaptionLabel->setVisible(!metalBuild);
+    gpuCombo->setVisible(!metalBuild);
+    gpuCombo->setEnabled(detailsEnabled && !metalBuild);
 }
 
 void ApplicationSettingsDialog::updateVulkanStatusText()
 {
     QString status;
-    if (MetalSsimEngine::isBuilt() && MetalSsimEngine::isAvailable()) {
+    if (detectionInProgress) {
+        status = tr("GPUを検出中…");
+    } else if (MetalSsimEngine::isBuilt() && MetalSsimEngine::isAvailable()) {
         status = tr("Metal GPU「%1」を検出しました。メモリ上限は推奨ワーキングセットの70%です。")
                      .arg(MetalSsimEngine::deviceName());
+    } else if (MetalSsimEngine::isBuilt()) {
+        status = tr("計算に利用できるMetal GPUが見つかりません。CPU計算を使用します。");
     } else if (!VulkanSsimEngine::isBuilt()) {
         status = tr("このビルドではVulkan計算が無効です。CPU計算を使用します。");
-    } else if (detectionInProgress) {
-        status = tr("GPUを検出中…");
     } else if (!scanResult.error.isEmpty()) {
         status = scanResult.error + tr(" CPU計算を使用します。");
     } else if (scanResult.devices.isEmpty()) {

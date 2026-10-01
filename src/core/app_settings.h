@@ -101,7 +101,7 @@ struct ApplicationDefaultSettings {
 class AppSettings
 {
 public:
-    // 実行ファイルと同じ場所にあるImage_Stitcher_Auto.confを読み込む。
+    // Image_Stitcher_Auto.confを読み込む（macOSはユーザー設定領域、他は実行ファイル横）。
     // ファイルや値が不正な場合は、各構造体の従来値へフォールバックする。
     static const ApplicationDefaultSettings& defaults();
     static QString defaultsFilePath();

@@ -11,6 +11,7 @@
 #include <QPalette>
 #include <QSettings>
 #include <QSaveFile>
+#include <QStandardPaths>
 #include <QTranslator>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
 #include <QStyleHints>
@@ -635,6 +636,30 @@ QString AppSettings::defaultsFilePath()
                                              : QDir::currentPath();
     const QString applicationPath =
         QDir(applicationDirectory).filePath(QString::fromLatin1(kDefaultsFileName));
+#ifdef Q_OS_MACOS
+    // Never modify a signed/read-only .app bundle. Seed a writable per-user
+    // configuration once, also accepting the location used by older builds.
+    const QString configDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    const QString userPath =
+        QDir(configDirectory).filePath(QString::fromLatin1(kDefaultsFileName));
+    if (!QFileInfo::exists(userPath) && QDir().mkpath(configDirectory)) {
+        const QStringList templates = {
+            applicationPath,
+            QDir(applicationDirectory).filePath(
+                QStringLiteral("../Resources/") + QString::fromLatin1(kDefaultsFileName)),
+            QDir::current().filePath(QString::fromLatin1(kDefaultsFileName))
+        };
+        for (const QString& source : templates) {
+            if (QFile::copy(source, userPath)) {
+                QFile::setPermissions(userPath, QFile::permissions(userPath)
+                                                   | QFileDevice::WriteOwner);
+                break;
+            }
+        }
+    }
+    return userPath;
+#else
     if (QFileInfo::exists(applicationPath)) {
         return applicationPath;
     }
@@ -643,6 +668,7 @@ QString AppSettings::defaultsFilePath()
     const QString workingDirectoryPath =
         QDir::current().filePath(QString::fromLatin1(kDefaultsFileName));
     return QFileInfo::exists(workingDirectoryPath) ? workingDirectoryPath : applicationPath;
+#endif
 }
 
 ApplicationTheme AppSettings::theme()
@@ -1239,6 +1265,10 @@ bool applyApplicationLanguage(ApplicationLanguage language)
     const QString applicationDirectory = QCoreApplication::applicationDirPath();
     const QStringList candidates = {
         QStringLiteral(":/translations/") + fileName,
+#ifdef Q_OS_MACOS
+        QDir(applicationDirectory).filePath(QStringLiteral("../Resources/translations/")
+                                              + fileName),
+#endif
         QDir(applicationDirectory).filePath(QStringLiteral("translations/") + fileName),
         QDir(applicationDirectory).filePath(fileName),
         QDir::current().filePath(QStringLiteral("translations/") + fileName),

@@ -1,9 +1,12 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21.1)
 
-project(Image_Stitcher_Auto VERSION 1.2.1 LANGUAGES CXX)
+project(Image_Stitcher_Auto VERSION 1.2.2 LANGUAGES CXX)
 
 if(APPLE)
     enable_language(OBJCXX)
+    # CMAKE_CXX_STANDARD does not apply to the Objective-C++ Metal backend.
+    set(CMAKE_OBJCXX_STANDARD 17)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 endif()
 
 if(WIN32)
@@ -70,10 +73,17 @@ endif()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent LinguistTools)
-find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc highgui)
+find_package(OpenCV REQUIRED COMPONENTS core imgcodecs imgproc)
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET
+        AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "10.14")
+    message(FATAL_ERROR
+        "Metal SSIM requires macOS 10.14 or later. Set CMAKE_OSX_DEPLOYMENT_TARGET "
+        "to at least 10.14 (or the higher minimum required by your Qt/OpenCV build).")
+endif()
 
 option(IMAGE_STITCHER_ENABLE_VULKAN "Enable the Vulkan SSIM compute path when available" ON)
-if(IMAGE_STITCHER_ENABLE_VULKAN)
+# macOS uses native Metal, including when a Vulkan/MoltenVK SDK is installed.
+if(IMAGE_STITCHER_ENABLE_VULKAN AND NOT APPLE)
     find_package(Vulkan QUIET)
 
     # Some MinGW installations provide the Vulkan development files through
@@ -121,17 +131,26 @@ set(CORE_SOURCES
     src/core/metal_ssim.h
     src/core/trws.cpp
     src/core/trws.h
-    src/core/vulkan_ssim.cpp
     src/core/vulkan_ssim.h
     src/core/vulkan_ssim_shader.h
     src/core/shaders/ssim_batch.comp
 )
 
+add_library(image_stitcher_gpu STATIC src/core/vulkan_ssim.cpp)
 if(APPLE)
-    list(APPEND CORE_SOURCES src/core/metal_ssim.mm)
+    target_sources(image_stitcher_gpu PRIVATE src/core/metal_ssim.mm)
 else()
-    list(APPEND CORE_SOURCES src/core/metal_ssim_stub.cpp)
+    target_sources(image_stitcher_gpu PRIVATE src/core/metal_ssim_stub.cpp)
 endif()
+target_include_directories(image_stitcher_gpu PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${OpenCV_INCLUDE_DIRS}
+)
+target_link_libraries(image_stitcher_gpu PUBLIC
+    Qt${QT_VERSION_MAJOR}::Core
+    opencv_core
+    opencv_imgproc
+)
 
 set(DIALOG_SOURCES
     src/dialogs/application_settings_dialog.cpp
@@ -308,15 +327,22 @@ if(QT_VERSION_MAJOR EQUAL 6)
         FILES ${TRANSLATION_FILES}
     )
 endif()
+if(APPLE)
+    set(IMAGE_STITCHER_BUILD_DATA_DIR
+        "$<TARGET_BUNDLE_CONTENT_DIR:Image_Stitcher_Auto>/Resources")
+else()
+    set(IMAGE_STITCHER_BUILD_DATA_DIR "$<TARGET_FILE_DIR:Image_Stitcher_Auto>")
+endif()
 add_custom_command(TARGET Image_Stitcher_Auto POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${IMAGE_STITCHER_BUILD_DATA_DIR}/translations"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${DEFAULT_SETTINGS_FILE}"
-        "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/Image_Stitcher_Auto.conf"
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/translations"
+        "${IMAGE_STITCHER_BUILD_DATA_DIR}/Image_Stitcher_Auto.conf"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${TRANSLATION_FILES}
-        "$<TARGET_FILE_DIR:Image_Stitcher_Auto>/translations"
+        "${IMAGE_STITCHER_BUILD_DATA_DIR}/translations"
+    VERBATIM
 )
 
 if(WIN32)
@@ -346,6 +372,7 @@ if(WIN32)
 endif()
 
 target_link_libraries(Image_Stitcher_Auto PRIVATE
+    image_stitcher_gpu
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Concurrent
     ${OpenCV_LIBS}
@@ -431,7 +458,7 @@ endif()
 if(APPLE)
     find_library(IMAGE_STITCHER_METAL_FRAMEWORK Metal REQUIRED)
     find_library(IMAGE_STITCHER_FOUNDATION_FRAMEWORK Foundation REQUIRED)
-    target_link_libraries(Image_Stitcher_Auto PRIVATE
+    target_link_libraries(image_stitcher_gpu PRIVATE
         ${IMAGE_STITCHER_METAL_FRAMEWORK}
         ${IMAGE_STITCHER_FOUNDATION_FRAMEWORK}
     )
@@ -440,15 +467,29 @@ if(APPLE)
     )
     set_target_properties(Image_Stitcher_Auto PROPERTIES
         MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Image Stitcher Auto"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.koyo00720.ImageStitcherAuto"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+    )
+    # Use deployment tools and libraries from the very same Qt/OpenCV packages
+    # as the build, not an unrelated installation found on PATH.
+    file(GENERATE
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/macos-deploy-$<CONFIG>.cmake"
+        CONTENT
+"set(IMAGE_STITCHER_MACDEPLOYQT \"$<TARGET_FILE_DIR:Qt${QT_VERSION_MAJOR}::qmake>/macdeployqt\")
+set(IMAGE_STITCHER_RUNTIME_SEARCH_DIRS \"$<TARGET_FILE_DIR:opencv_core>;$<TARGET_FILE_DIR:opencv_imgcodecs>;$<TARGET_FILE_DIR:Qt${QT_VERSION_MAJOR}::Core>\")
+include(\"${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/deploy-app.cmake\")
+"
     )
     message(STATUS "Image Stitcher Auto Metal SSIM: enabled")
 endif()
 
-if(IMAGE_STITCHER_ENABLE_VULKAN AND Vulkan_FOUND)
-    target_link_libraries(Image_Stitcher_Auto PRIVATE Vulkan::Vulkan)
-    target_compile_definitions(Image_Stitcher_Auto PRIVATE IMAGE_STITCHER_HAS_VULKAN=1)
+if(APPLE)
+    message(STATUS "Image Stitcher Auto Vulkan SSIM: disabled on macOS; Metal with CPU fallback")
+elseif(IMAGE_STITCHER_ENABLE_VULKAN AND Vulkan_FOUND)
+    target_link_libraries(image_stitcher_gpu PRIVATE Vulkan::Vulkan)
+    target_compile_definitions(image_stitcher_gpu PRIVATE IMAGE_STITCHER_HAS_VULKAN=1)
     message(STATUS "Image Stitcher Auto Vulkan SSIM: enabled")
 else()
     message(STATUS "Image Stitcher Auto Vulkan SSIM: unavailable; CPU fallback only")
@@ -496,7 +537,7 @@ if(WIN32)
 endif()
 if(APPLE)
     set(IMAGE_STITCHER_RUNTIME_DATA_DIR
-        "Image_Stitcher_Auto.app/Contents/MacOS")
+        "Image_Stitcher_Auto.app/Contents/Resources")
 else()
     set(IMAGE_STITCHER_RUNTIME_DATA_DIR ${CMAKE_INSTALL_BINDIR})
 endif()
@@ -511,9 +552,8 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(Image_Stitcher_Auto)
 endif()
 
-# These flags are valid only for x86/x64 targets. Avoid injecting them into
-# Linux builds for ARM and other architectures.
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64|i[3-6]86)$")
+# Do not inject x86-only flags into Apple Silicon or universal macOS builds.
+if(NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64|i[3-6]86)$")
     target_compile_options(Image_Stitcher_Auto PRIVATE
         $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU,Clang>>:-O3>
         $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU,Clang>>:-mavx2>

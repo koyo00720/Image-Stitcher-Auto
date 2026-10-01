@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -233,8 +234,11 @@ bool buildContext(std::unique_ptr<MetalContext>& output, QString& error)
 
     NSError* compileError = nil;
     NSString* source = [NSString stringWithUTF8String:kMetalSsimSource];
+    MTLCompileOptions* compileOptions = [MTLCompileOptions new];
+    // SSIM subtracts nearly equal moments; keep the CPU path's precision rules.
+    compileOptions.fastMathEnabled = NO;
     id<MTLLibrary> library = [context->device newLibraryWithSource:source
-                                                           options:nil
+                                                           options:compileOptions
                                                              error:&compileError];
     if (!library) {
         error = errorText(QCoreApplication::translate(
@@ -299,17 +303,19 @@ MetalSsimBatchResult computeBatchLocked(
     }
     MetalContext& context = *gContext;
 
-    const cv::Mat firstGray = toGrayFloat(firstBgra);
-    const cv::Mat secondGray = toGrayFloat(secondBgra);
-    if (firstGray.empty() || secondGray.empty()) {
+    auto supportedImage = [](const cv::Mat& image) {
+        return !image.empty() && image.dims == 2
+               && (image.channels() == 1 || image.channels() == 3 || image.channels() == 4);
+    };
+    if (!supportedImage(firstBgra) || !supportedImage(secondBgra)) {
         output.status = MetalSsimStatus::Unsupported;
         output.message = QCoreApplication::translate(
             "MetalSsimEngine", "Metal SSIMで扱えない画像形式です。");
         return output;
     }
 
-    const quint64 firstPixels = firstGray.total();
-    const quint64 secondPixels = secondGray.total();
+    const quint64 firstPixels = firstBgra.total();
+    const quint64 secondPixels = secondBgra.total();
     const quint64 totalPixels = firstPixels + secondPixels;
     if (totalPixels > std::numeric_limits<uint32_t>::max()) {
         output.status = MetalSsimStatus::Unsupported;
@@ -318,13 +324,9 @@ MetalSsimBatchResult computeBatchLocked(
         return output;
     }
 
-    std::vector<float> pixels(static_cast<size_t>(totalPixels));
-    std::memcpy(pixels.data(), firstGray.ptr<float>(),
-                static_cast<size_t>(firstPixels) * sizeof(float));
-    std::memcpy(pixels.data() + firstPixels, secondGray.ptr<float>(),
-                static_cast<size_t>(secondPixels) * sizeof(float));
-
-    std::vector<MetalJob> jobs;
+    // Count first. In particular, do not allocate the potentially very large
+    // per-threadgroup job array or grayscale copies before checking the budget.
+    quint64 jobCount64 = 0;
     std::vector<size_t> taskGroupBegin(rois.size(), 0);
     std::vector<size_t> taskGroupCount(rois.size(), 0);
     std::vector<uint32_t> taskPixelCount(rois.size(), 0);
@@ -334,11 +336,11 @@ MetalSsimBatchResult computeBatchLocked(
         const cv::Rect& second = rois[task].second;
         if (first.empty() || second.empty() || first.size() != second.size()
             || first.x < 0 || first.y < 0
-            || first.x + first.width > firstGray.cols
-            || first.y + first.height > firstGray.rows
+            || static_cast<qint64>(first.x) + first.width > firstBgra.cols
+            || static_cast<qint64>(first.y) + first.height > firstBgra.rows
             || second.x < 0 || second.y < 0
-            || second.x + second.width > secondGray.cols
-            || second.y + second.height > secondGray.rows) {
+            || static_cast<qint64>(second.x) + second.width > secondBgra.cols
+            || static_cast<qint64>(second.y) + second.height > secondBgra.rows) {
             continue;
         }
 
@@ -347,13 +349,63 @@ MetalSsimBatchResult computeBatchLocked(
             continue;
         }
         const uint32_t pixelCount = static_cast<uint32_t>(pixelCount64);
-        const size_t groupCount = (pixelCount + kLocalSize - 1) / kLocalSize;
-        taskGroupBegin[task] = jobs.size();
+        const size_t groupCount =
+            static_cast<size_t>((pixelCount64 + kLocalSize - 1) / kLocalSize);
+        taskGroupBegin[task] = static_cast<size_t>(jobCount64);
         taskGroupCount[task] = groupCount;
         taskPixelCount[task] = pixelCount;
+        jobCount64 += groupCount;
+        if (jobCount64 > std::numeric_limits<uint32_t>::max()) {
+            output.status = MetalSsimStatus::Unsupported;
+            output.message = QCoreApplication::translate(
+                "MetalSsimEngine", "Metal SSIMのthreadgroup数上限を超えています。");
+            return output;
+        }
+    }
 
-        for (size_t group = 0; group < groupCount; ++group) {
-            MetalJob job{};
+    if (jobCount64 == 0) {
+        output.status = MetalSsimStatus::Success;
+        return output;
+    }
+    const quint64 pixelBytes = totalPixels * sizeof(float);
+    const quint64 jobBytes = jobCount64 * sizeof(MetalJob);
+    const quint64 resultBytes = jobCount64 * sizeof(float);
+    output.requiredVramBytes = pixelBytes + jobBytes + resultBytes;
+    const quint64 maxBufferLength = static_cast<quint64>(context.device.maxBufferLength);
+    if (pixelBytes > maxBufferLength || jobBytes > maxBufferLength
+        || resultBytes > maxBufferLength) {
+        output.status = MetalSsimStatus::Unsupported;
+        output.message = QCoreApplication::translate(
+            "MetalSsimEngine", "必要なbufferが選択GPUの上限を超えています。");
+        return output;
+    }
+
+    const quint64 recommendedWorkingSet =
+        static_cast<quint64>(context.device.recommendedMaxWorkingSetSize);
+    output.vramLimitBytes = recommendedWorkingSet * kVramSafetyPercent / 100;
+    if (!ignoreVramLimit
+        && (output.vramLimitBytes == 0
+            || output.requiredVramBytes > output.vramLimitBytes)) {
+        output.status = MetalSsimStatus::VramLimitExceeded;
+        output.message = QCoreApplication::translate(
+            "MetalSsimEngine", "Metal計算のメモリ見積もりが安全上限を超えました。");
+        return output;
+    }
+
+    const cv::Mat firstGray = toGrayFloat(firstBgra);
+    const cv::Mat secondGray = toGrayFloat(secondBgra);
+    std::vector<float> pixels(static_cast<size_t>(totalPixels));
+    std::memcpy(pixels.data(), firstGray.ptr<float>(),
+                static_cast<size_t>(firstPixels) * sizeof(float));
+    std::memcpy(pixels.data() + firstPixels, secondGray.ptr<float>(),
+                static_cast<size_t>(secondPixels) * sizeof(float));
+
+    std::vector<MetalJob> jobs(static_cast<size_t>(jobCount64));
+    for (size_t task = 0; task < rois.size(); ++task) {
+        const cv::Rect& first = rois[task].first;
+        const cv::Rect& second = rois[task].second;
+        for (size_t group = 0; group < taskGroupCount[task]; ++group) {
+            MetalJob& job = jobs[taskGroupBegin[task] + group];
             job.offset1 = 0;
             job.offset2 = static_cast<uint32_t>(firstPixels);
             job.stride1 = static_cast<uint32_t>(firstGray.cols);
@@ -365,45 +417,8 @@ MetalSsimBatchResult computeBatchLocked(
             job.width = static_cast<uint32_t>(first.width);
             job.height = static_cast<uint32_t>(first.height);
             job.startPixel = static_cast<uint32_t>(group * kLocalSize);
-            job.pixelCount = pixelCount;
-            jobs.push_back(job);
+            job.pixelCount = taskPixelCount[task];
         }
-    }
-
-    if (jobs.empty()) {
-        output.status = MetalSsimStatus::Success;
-        return output;
-    }
-    if (jobs.size() > std::numeric_limits<uint32_t>::max()) {
-        output.status = MetalSsimStatus::Unsupported;
-        output.message = QCoreApplication::translate(
-            "MetalSsimEngine", "Metal SSIMのthreadgroup数上限を超えています。");
-        return output;
-    }
-
-    const quint64 pixelBytes = static_cast<quint64>(pixels.size() * sizeof(float));
-    const quint64 jobBytes = static_cast<quint64>(jobs.size() * sizeof(MetalJob));
-    const quint64 resultBytes = static_cast<quint64>(jobs.size() * sizeof(float));
-    const quint64 maxBufferLength = static_cast<quint64>(context.device.maxBufferLength);
-    if (pixelBytes > maxBufferLength || jobBytes > maxBufferLength
-        || resultBytes > maxBufferLength) {
-        output.status = MetalSsimStatus::Unsupported;
-        output.message = QCoreApplication::translate(
-            "MetalSsimEngine", "必要なbufferが選択GPUの上限を超えています。");
-        return output;
-    }
-
-    output.requiredVramBytes = pixelBytes + jobBytes + resultBytes;
-    const quint64 recommendedWorkingSet =
-        static_cast<quint64>(context.device.recommendedMaxWorkingSetSize);
-    output.vramLimitBytes = recommendedWorkingSet * kVramSafetyPercent / 100;
-    if (!ignoreVramLimit
-        && (output.vramLimitBytes == 0
-            || output.requiredVramBytes > output.vramLimitBytes)) {
-        output.status = MetalSsimStatus::VramLimitExceeded;
-        output.message = QCoreApplication::translate(
-            "MetalSsimEngine", "Metal計算のメモリ見積もりが安全上限を超えました。");
-        return output;
     }
 
     id<MTLBuffer> pixelBuffer =
@@ -496,6 +511,14 @@ MetalSsimBatchResult MetalSsimEngine::computeBatch(
 {
     @autoreleasepool {
         std::lock_guard<std::mutex> lock(gExecutionMutex);
-        return computeBatchLocked(firstBgra, secondBgra, rois, ignoreVramLimit);
+        try {
+            return computeBatchLocked(firstBgra, secondBgra, rois, ignoreVramLimit);
+        } catch (const std::exception& error) {
+            // Allocation/OpenCV failures must allow the caller's CPU fallback.
+            MetalSsimBatchResult result;
+            result.status = MetalSsimStatus::Failed;
+            result.message = QString::fromUtf8(error.what());
+            return result;
+        }
     }
 }

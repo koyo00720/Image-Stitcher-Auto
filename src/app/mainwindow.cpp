@@ -1205,6 +1205,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->checkBox_2->setChecked(defaults.canvas.useCanvasAsSource);
 
     // メニューバー左端のファイルメニュー、その右にキャンパスと設定。
+#ifdef Q_OS_MACOS
+    // Keep the direct Settings button: native macOS menu bars expect submenus
+    // at the top level and cannot represent this button consistently.
+    ui->menubar->setNativeMenuBar(false);
+#endif
     fileMenu = ui->menubar->addMenu(tr("ファイル"));
     projectOpenAction = fileMenu->addAction(tr("プロジェクトを開く"));
     projectOpenAction->setShortcut(QKeySequence::Open);
@@ -1299,13 +1304,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // 配列指定エリアの設定
     connect(ui->cornerSelector, &CornerDirectionSelector::stateChanged,
             this, [this](int state) {
-                Q_UNUSED(state);
+                if (!suppressSettingsPersistence) {
+                    projectArrangementSettingsActive = false;
+                }
                 arrangeSettingsChanged();
+                if (state >= 1 && state <= 8) {
+                    persistArrangementSettings();
+                }
                 scheduleSettingsPersistence();
             });
 
     connect(ui->cornerSelector, &CornerDirectionSelector::r_Changed,
             this, [this](int rows){
+                if (!suppressSettingsPersistence) {
+                    projectArrangementSettingsActive = false;
+                }
                 configuredVerticalImageCount = rows;
                 arrangeSettingsChanged();
                 scheduleSettingsPersistence();
@@ -1313,6 +1326,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     connect(ui->cornerSelector, &CornerDirectionSelector::c_Changed,
             this, [this](int cols){
+                if (!suppressSettingsPersistence) {
+                    projectArrangementSettingsActive = false;
+                }
                 configuredHorizontalImageCount = cols;
                 arrangeSettingsChanged();
                 scheduleSettingsPersistence();
@@ -1320,6 +1336,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     connect(ui->cornerSelector, &CornerDirectionSelector::zigzagChanged,
             this, [this](bool zigzag) {
+        if (!suppressSettingsPersistence) {
+            projectArrangementSettingsActive = false;
+        }
         orikaeshi = zigzag;
         arrangeSettingsChanged();
         scheduleSettingsPersistence();
@@ -1500,7 +1519,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     vulkanScanWatcher = new QFutureWatcher<VulkanDeviceScanResult>(this);
     // タイマー発火前に設定画面を開いた場合も「未検出」ではなく待機中と表示する。
-    vulkanDetectionInProgress = VulkanSsimEngine::isBuilt();
+    vulkanDetectionInProgress = MetalSsimEngine::isBuilt() || VulkanSsimEngine::isBuilt();
     connect(vulkanScanWatcher, &QFutureWatcher<VulkanDeviceScanResult>::finished,
             this, [this]() {
         vulkanDetectionInProgress = false;
@@ -1511,7 +1530,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     });
 
     // イベントループ開始後にバックグラウンド検出し、起動時間へ影響させない。
-    QTimer::singleShot(750, this, &MainWindow::startDelayedVulkanDetection);
+    if (vulkanDetectionInProgress) {
+        QTimer::singleShot(750, this, &MainWindow::startDelayedVulkanDetection);
+    }
     posi_lock(ui->checkBox->isChecked());
     updateWindowTitle();
 }
@@ -1791,27 +1812,12 @@ void MainWindow::showProjectOpenDialog()
         return;
     }
 
-    auto* dialog = new QFileDialog(
+    const QString path = QFileDialog::getOpenFileName(
         this, tr("プロジェクトを開く"), QString(),
         tr("Image Stitcher Auto プロジェクト (*.isauto)"));
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setAcceptMode(QFileDialog::AcceptOpen);
-    dialog->setFileMode(QFileDialog::ExistingFile);
-    dialog->setDefaultSuffix(QStringLiteral("isauto"));
-    dialog->setOption(
-        QFileDialog::DontUseNativeDialog,
-        !image_stitcher::platform::useNativeFileDialogs());
-    dialog->setModal(false);
-    dialog->setWindowModality(Qt::NonModal);
-    dialog->resize(AppSettings::windowSize(QStringLiteral("projectOpen"),
-                                           QSize(900, 600)));
-    connect(dialog, &QFileDialog::fileSelected,
-            this, &MainWindow::requestProjectOpen);
-    connect(dialog, &QDialog::finished, dialog, [dialog]() {
-        AppSettings::setWindowSize(QStringLiteral("projectOpen"),
-                                   dialog->size());
-    });
-    dialog->show();
+    if (!path.isEmpty()) {
+        requestProjectOpen(path);
+    }
 }
 
 void MainWindow::saveProject()
@@ -1825,64 +1831,45 @@ void MainWindow::saveProject()
 
 void MainWindow::saveProjectAs(std::function<void(bool)> completion)
 {
-    auto* dialog = new QFileDialog(
-        this, tr("名前を付けてプロジェクト保存"), QString(),
-        tr("Image Stitcher Auto プロジェクト (*.isauto)"));
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setAcceptMode(QFileDialog::AcceptSave);
-    dialog->setFileMode(QFileDialog::AnyFile);
-    dialog->setDefaultSuffix(QStringLiteral("isauto"));
-    dialog->setOption(
-        QFileDialog::DontUseNativeDialog,
-        !image_stitcher::platform::useNativeFileDialogs());
-    dialog->setOption(QFileDialog::DontConfirmOverwrite, true);
-    dialog->setModal(false);
-    dialog->setWindowModality(Qt::NonModal);
-    dialog->resize(AppSettings::windowSize(QStringLiteral("projectSaveAs"),
-                                           QSize(900, 600)));
-    if (!linkedProjectFilePath.isEmpty()) {
-        dialog->selectFile(linkedProjectFilePath);
-    }
-
     auto completed = std::make_shared<bool>(false);
     auto finish = [completion = std::move(completion), completed](bool result) {
         if (*completed) return;
         *completed = true;
         if (completion) completion(result);
     };
-    connect(dialog, &QFileDialog::fileSelected, this,
-            [this, finish](QString path) {
-        if (QFileInfo(path).suffix().compare(QStringLiteral("isauto"),
-                                             Qt::CaseInsensitive) != 0) {
-            path += QStringLiteral(".isauto");
-        }
-        if (!QFileInfo::exists(path)) {
-            finish(saveProjectToPath(path));
-            return;
-        }
 
-        auto* confirmation = new QMessageBox(
-            QMessageBox::Warning, tr("上書き確認"),
-            tr("ファイルは既に存在します。上書きしますか？\n%1")
-                .arg(QDir::toNativeSeparators(path)),
-            QMessageBox::Yes | QMessageBox::No, this);
-        confirmation->setAttribute(Qt::WA_DeleteOnClose);
-        confirmation->setDefaultButton(QMessageBox::No);
-        confirmation->setModal(false);
-        confirmation->setWindowModality(Qt::NonModal);
-        connect(confirmation, &QDialog::finished, this,
-                [this, path, finish](int result) {
-            finish(result == QMessageBox::Yes
-                       ? saveProjectToPath(path) : false);
-        });
-        confirmation->show();
+    QString path = QFileDialog::getSaveFileName(
+        this, tr("名前を付けてプロジェクト保存"), linkedProjectFilePath,
+        tr("Image Stitcher Auto プロジェクト (*.isauto)"), nullptr,
+        QFileDialog::Options(QFileDialog::DontConfirmOverwrite));
+    if (path.isEmpty()) {
+        finish(false);
+        return;
+    }
+    if (QFileInfo(path).suffix().compare(QStringLiteral("isauto"),
+                                         Qt::CaseInsensitive) != 0) {
+        path += QStringLiteral(".isauto");
+    }
+    if (!QFileInfo::exists(path)) {
+        finish(saveProjectToPath(path));
+        return;
+    }
+
+    auto* confirmation = new QMessageBox(
+        QMessageBox::Warning, tr("上書き確認"),
+        tr("ファイルは既に存在します。上書きしますか？\n%1")
+            .arg(QDir::toNativeSeparators(path)),
+        QMessageBox::Yes | QMessageBox::No, this);
+    confirmation->setAttribute(Qt::WA_DeleteOnClose);
+    confirmation->setDefaultButton(QMessageBox::No);
+    confirmation->setModal(false);
+    confirmation->setWindowModality(Qt::NonModal);
+    connect(confirmation, &QDialog::finished, this,
+            [this, path, finish](int result) {
+        finish(result == QMessageBox::Yes
+                   ? saveProjectToPath(path) : false);
     });
-    connect(dialog, &QDialog::rejected, this, [finish]() { finish(false); });
-    connect(dialog, &QDialog::finished, dialog, [dialog]() {
-        AppSettings::setWindowSize(QStringLiteral("projectSaveAs"),
-                                   dialog->size());
-    });
-    dialog->show();
+    confirmation->show();
 }
 
 bool MainWindow::saveProjectToPath(const QString& requestedPath)
@@ -2223,6 +2210,13 @@ bool MainWindow::loadProjectFromPath(const QString& requestedPath)
     }
 
     const QVariantMap settings = project.value(QStringLiteral("settings")).toMap();
+    const ArrangementDefaultSettings applicationArrangement =
+        AppSettings::arrangementOptions();
+    const bool projectHasArrangementSettings =
+        settings.contains(QStringLiteral("direction"))
+        || settings.contains(QStringLiteral("horizontalCount"))
+        || settings.contains(QStringLiteral("verticalCount"))
+        || settings.contains(QStringLiteral("zigzag"));
     if (fileInputDialog) {
         fileInputDialog->close();
     }
@@ -2258,10 +2252,16 @@ bool MainWindow::loadProjectFromPath(const QString& requestedPath)
         std::clamp(settings.value(QStringLiteral("verticalOverlap"), 25).toInt(), 1, 100),
         std::clamp(settings.value(QStringLiteral("searchRange"), 15).toInt(), 0, 100));
     set_array_value(
-        std::clamp(settings.value(QStringLiteral("direction"), 8).toInt(), 1, 8),
-        std::max(0, settings.value(QStringLiteral("horizontalCount"), 0).toInt()),
-        std::max(0, settings.value(QStringLiteral("verticalCount"), 0).toInt()));
-    set_zigzag_value(settings.value(QStringLiteral("zigzag"), true).toBool() ? 1 : 0);
+        std::clamp(settings.value(QStringLiteral("direction"),
+                                  applicationArrangement.direction).toInt(),
+                   1, 8),
+        std::max(0, settings.value(QStringLiteral("horizontalCount"),
+                                   applicationArrangement.horizontalImageCount).toInt()),
+        std::max(0, settings.value(QStringLiteral("verticalCount"),
+                                   applicationArrangement.verticalImageCount).toInt()));
+    set_zigzag_value(settings.value(QStringLiteral("zigzag"),
+                                    applicationArrangement.zigzag).toBool() ? 1 : 0);
+    projectArrangementSettingsActive = projectHasArrangementSettings;
 
     pa_TF = settings.value(QStringLiteral("localEnabled"), false).toBool();
     pa_num = std::clamp(settings.value(QStringLiteral("localImageCount"), 6).toInt(), 4, 100);
@@ -2495,12 +2495,6 @@ bool MainWindow::loadProjectFromPath(const QString& requestedPath)
     restoredAlignment.verticalOverlapPercent = ui->spinBox_3->value();
     restoredAlignment.searchRangePercent = ui->spinBox->value();
     AppSettings::setAlignmentOptions(restoredAlignment);
-    ArrangementDefaultSettings restoredArrangement;
-    restoredArrangement.direction = ui->cornerSelector->getStatus();
-    restoredArrangement.horizontalImageCount = configuredHorizontalImageCount;
-    restoredArrangement.verticalImageCount = configuredVerticalImageCount;
-    restoredArrangement.zigzag = ui->cornerSelector->zigzagChecked();
-    AppSettings::setArrangementOptions(restoredArrangement);
     TrwsPamiDefaultSettings restoredTrws;
     restoredTrws.localEnabled = pa_TF;
     restoredTrws.localImageCount = pa_num;
@@ -2616,6 +2610,11 @@ void MainWindow::startDelayedVulkanDetection()
         applicationSettingsDialog->setVulkanDetectionInProgress();
     }
     vulkanScanWatcher->setFuture(QtConcurrent::run([]() {
+        if (MetalSsimEngine::isBuilt()) {
+            // Cache the default Metal device off the GUI thread as well.
+            MetalSsimEngine::isAvailable();
+            return VulkanDeviceScanResult{};
+        }
         return VulkanSsimEngine::detectDevices();
     }));
 }
@@ -4021,7 +4020,8 @@ QString MainWindow::selectedOptimizationComputePath() const
     if (!options.enabled) {
         return QStringLiteral("CPU");
     }
-    if (MetalSsimEngine::isBuilt() && MetalSsimEngine::isAvailable()) {
+    if (MetalSsimEngine::isBuilt()
+        && (vulkanDetectionInProgress || MetalSsimEngine::isAvailable())) {
         return QStringLiteral("Metal");
     }
     if (VulkanSsimEngine::isBuilt()
@@ -5476,44 +5476,37 @@ void MainWindow::png_export() {
         QString newName = "stitched_" + fi.completeBaseName() + ".png";
         QString initialPath = dir.filePath(newName);
 
-        auto* dialog = new QFileDialog(this, tr("保存"), initialPath,
-                                       tr("PNG画像 (*.png);;すべてのファイル (*)"));
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->setAcceptMode(QFileDialog::AcceptSave);
-        dialog->setFileMode(QFileDialog::AnyFile);
-        dialog->setDefaultSuffix(QStringLiteral("png"));
-        dialog->setOption(
-            QFileDialog::DontUseNativeDialog,
-            !image_stitcher::platform::useNativeFileDialogs());
-        dialog->setOption(QFileDialog::DontConfirmOverwrite, true);
-        dialog->setModal(false);
-        dialog->setWindowModality(Qt::NonModal);
-        trackDialogSize(dialog, QStringLiteral("pngExport"), QSize(900, 600));
-        connect(dialog, &QFileDialog::fileSelected,
-                this, [this](const QString& path) {
-            if (!QFileInfo::exists(path)) {
-                savePngToPath(path);
-                return;
-            }
+        QString path = QFileDialog::getSaveFileName(
+            this, tr("保存"), initialPath,
+            tr("PNG画像 (*.png);;すべてのファイル (*)"), nullptr,
+            QFileDialog::Options(QFileDialog::DontConfirmOverwrite));
+        if (path.isEmpty()) {
+            return;
+        }
+        if (QFileInfo(path).suffix().isEmpty()) {
+            path += QStringLiteral(".png");
+        }
+        if (!QFileInfo::exists(path)) {
+            savePngToPath(path);
+            return;
+        }
 
-            auto* confirmation = new QMessageBox(
-                QMessageBox::Warning, tr("上書き確認"),
-                tr("ファイルは既に存在します。上書きしますか？\n%1")
-                    .arg(QDir::toNativeSeparators(path)),
-                QMessageBox::Yes | QMessageBox::No, this);
-            confirmation->setAttribute(Qt::WA_DeleteOnClose);
-            confirmation->setDefaultButton(QMessageBox::No);
-            confirmation->setModal(false);
-            confirmation->setWindowModality(Qt::NonModal);
-            connect(confirmation, &QDialog::finished, this,
-                    [this, path](int result) {
-                if (result == QMessageBox::Yes) {
-                    savePngToPath(path);
-                }
-            });
-            confirmation->show();
+        auto* confirmation = new QMessageBox(
+            QMessageBox::Warning, tr("上書き確認"),
+            tr("ファイルは既に存在します。上書きしますか？\n%1")
+                .arg(QDir::toNativeSeparators(path)),
+            QMessageBox::Yes | QMessageBox::No, this);
+        confirmation->setAttribute(Qt::WA_DeleteOnClose);
+        confirmation->setDefaultButton(QMessageBox::No);
+        confirmation->setModal(false);
+        confirmation->setWindowModality(Qt::NonModal);
+        connect(confirmation, &QDialog::finished, this,
+                [this, path](int result) {
+            if (result == QMessageBox::Yes) {
+                savePngToPath(path);
+            }
         });
-        dialog->show();
+        confirmation->show();
     }
 }
 
@@ -8533,7 +8526,7 @@ void MainWindow::persistAlignmentSettings()
 
 void MainWindow::persistArrangementSettings()
 {
-    if (suppressSettingsPersistence || !ui) {
+    if (suppressSettingsPersistence || projectArrangementSettingsActive || !ui) {
         return;
     }
     ArrangementDefaultSettings settings;
@@ -8687,6 +8680,7 @@ void MainWindow::handleSettingsReset(SettingsResetCategory category)
         ui->cornerSelector->setZigzagChecked(settings.zigzag);
         orikaeshi = ui->cornerSelector->zigzagChecked();
         arrangeSettingsChanged();
+        projectArrangementSettingsActive = false;
     }
 
     if (resetAll || category == SettingsResetCategory::LeastSquares) {

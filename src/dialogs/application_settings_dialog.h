@@ -99,7 +99,9 @@ private:
     QPushButton* closeButton = nullptr;
 
     VulkanDeviceScanResult scanResult;
-    bool detectionInProgress = false;
+    // The owner supplies the scan state before showing the dialog. Do not
+    // trigger synchronous GPU discovery while constructing its widgets.
+    bool detectionInProgress = true;
 };
 
 #endif // APPLICATION_SETTINGS_DIALOG_H

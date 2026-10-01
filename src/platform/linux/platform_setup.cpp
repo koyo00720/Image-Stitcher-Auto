@@ -13,11 +13,6 @@ void configureEnvironment()
     // No Linux-specific process configuration is currently required.
 }
 
-bool useNativeFileDialogs()
-{
-    return true;
-}
-
 int controlPanelMinimumWidth(int uiMinimumWidth)
 {
     return std::max(uiMinimumWidth, kLinuxControlPanelMinimumWidth);

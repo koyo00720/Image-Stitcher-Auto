@@ -11,11 +11,6 @@ void configureEnvironment()
     qputenv("QT_IMAGEIO_MAXALLOC", QByteArray("0"));
 }
 
-bool useNativeFileDialogs()
-{
-    return false;
-}
-
 int controlPanelMinimumWidth(int uiMinimumWidth)
 {
     return uiMinimumWidth;

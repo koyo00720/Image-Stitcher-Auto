@@ -247,6 +247,10 @@
         <translation>Detected Metal GPU “%1”. The memory limit is 70% of its recommended working set.</translation>
     </message>
     <message>
+        <source>計算に利用できるMetal GPUが見つかりません。CPU計算を使用します。</source>
+        <translation>No Metal GPU available for compute was found. CPU compute will be used.</translation>
+    </message>
+    <message>
         <location filename="../src/dialogs/application_settings_dialog.cpp" line="532"/>
         <source>このビルドではVulkan計算が無効です。CPU計算を使用します。</source>
         <translation>Vulkan compute is disabled in this build. CPU compute will be used.</translation>

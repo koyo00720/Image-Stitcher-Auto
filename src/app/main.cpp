@@ -16,8 +16,9 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setApplicationName("Image Stitcher Auto");
     QCoreApplication::setOrganizationName("Image Stitcher Auto");
-    QCoreApplication::setApplicationVersion("1.2.1");
+    QCoreApplication::setApplicationVersion("1.2.2");
     const ApplicationDefaultSettings& defaults = AppSettings::defaults();
+    const ArrangementDefaultSettings arrangement = AppSettings::arrangementOptions();
     applyApplicationLanguage(AppSettings::language());
     applyApplicationTheme(AppSettings::theme());
 
@@ -70,33 +71,33 @@ int main(int argc, char *argv[])
     QCommandLineOption arrayOption(
         QStringList() << "a" <<"array",
         QCoreApplication::translate("main", "画像の配列を指定, [1-8], デフォルト: %1, 1:左上→右, 2: 左上→下, 3: 右上→左, 4: 右上→下, 5: 左下→右, 6: 左下→上, 7: 右下→左, 8: 右下→上")
-            .arg(defaults.arrangement.direction),
+            .arg(arrangement.direction),
         "int");
-    arrayOption.setDefaultValue(QString::number(defaults.arrangement.direction));
+    arrayOption.setDefaultValue(QString::number(arrangement.direction));
     parser.addOption(arrayOption);
 
     QCommandLineOption arrayhOption(
         QStringList() <<"x_num",
         QCoreApplication::translate("main", "横方向の画像枚数を指定, [0-画像枚数], デフォルト: %1, 0:自動, 1-:枚数")
-            .arg(defaults.arrangement.horizontalImageCount),
+            .arg(arrangement.horizontalImageCount),
         "int");
-    arrayhOption.setDefaultValue(QString::number(defaults.arrangement.horizontalImageCount));
+    arrayhOption.setDefaultValue(QString::number(arrangement.horizontalImageCount));
     parser.addOption(arrayhOption);
 
     QCommandLineOption arrayvOption(
         QStringList() << "y_num",
         QCoreApplication::translate("main", "縦方向の画像枚数を指定, [0-画像枚数], デフォルト: %1, 0:自動, 1-:枚数")
-            .arg(defaults.arrangement.verticalImageCount),
+            .arg(arrangement.verticalImageCount),
         "int");
-    arrayvOption.setDefaultValue(QString::number(defaults.arrangement.verticalImageCount));
+    arrayvOption.setDefaultValue(QString::number(arrangement.verticalImageCount));
     parser.addOption(arrayvOption);
 
     QCommandLineOption zigOption(
         QStringList() << "z" << "zig",
         QCoreApplication::translate("main", "ジグザグ配列にするか指定, [0-1], デフォルト: %1, 0: 一方向, 1: ジグザグ")
-            .arg(defaults.arrangement.zigzag ? 1 : 0),
+            .arg(arrangement.zigzag ? 1 : 0),
         "int");
-    zigOption.setDefaultValue(QString::number(defaults.arrangement.zigzag ? 1 : 0));
+    zigOption.setDefaultValue(QString::number(arrangement.zigzag ? 1 : 0));
     parser.addOption(zigOption);
 
     QCommandLineOption pa0Option(
@@ -259,22 +260,22 @@ int main(int argc, char *argv[])
     ok = false;
     int ar = parser.value(arrayOption).toInt(&ok);
     if (!ok || ar < 1 || ar > 8) {
-        ar = defaults.arrangement.direction;
+        ar = arrangement.direction;
     }
     ok = false;
     int arh = parser.value(arrayhOption).toInt(&ok);
     if (!ok || arh < 0) {
-        arh = defaults.arrangement.horizontalImageCount;
+        arh = arrangement.horizontalImageCount;
     }
     ok = false;
     int arv = parser.value(arrayvOption).toInt(&ok);
     if (!ok || arv < 0) {
-        arv = defaults.arrangement.verticalImageCount;
+        arv = arrangement.verticalImageCount;
     }
     ok = false;
     int zig = parser.value(zigOption).toInt(&ok);
     if (!ok || zig < 0 || zig > 1) {
-        zig = defaults.arrangement.zigzag ? 1 : 0;
+        zig = arrangement.zigzag ? 1 : 0;
     }
     ok = false;
     int pa0 = parser.value(pa0Option).toInt(&ok);

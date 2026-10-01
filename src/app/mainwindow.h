@@ -39,7 +39,6 @@ class QProgressBar;
 class QCheckBox;
 class QCloseEvent;
 class QColorDialog;
-class QFileDialog;
 class QScrollArea;
 class QLineEdit;
 class QPushButton;
@@ -430,6 +429,10 @@ private:
     QHash<QDialog*, QString> trackedDialogSizeKeys;
     QHash<QDialog*, QSize> trackedDialogDefaultSizes;
     bool suppressSettingsPersistence = false;
+    // A project can temporarily override the application-wide layout default.
+    // Keep that override out of the configuration file until the user changes
+    // a layout control explicitly.
+    bool projectArrangementSettingsActive = false;
     QTimer* settingsPersistenceTimer = nullptr;
     QString linkedProjectFilePath;
     int savedProjectHistorySequence = 0;
